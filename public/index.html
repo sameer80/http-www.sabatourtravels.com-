@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Saba Tour &amp; Travels — Plan Your Perfect Journey</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="/">
+        <span class="brand-mark">✈</span>
+        <span>Saba Tour &amp; Travels</span>
+      </a>
+      <nav class="nav">
+        <a href="#packages">Packages</a>
+        <a href="#inquiry">Plan a Trip</a>
+      </nav>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="container hero-inner">
+      <h1>Discover the world, one journey at a time</h1>
+      <p>Handcrafted holidays across India and beyond. Tell us where you dream of going and we’ll take care of the rest.</p>
+      <a class="btn btn-primary" href="#inquiry">Start planning</a>
+    </div>
+  </section>
+
+  <main class="container">
+    <section id="packages" class="packages">
+      <h2>Featured packages</h2>
+      <p class="section-sub">Loaded live from our booking API.</p>
+      <div id="package-grid" class="package-grid" aria-live="polite">
+        <p class="loading">Loading packages…</p>
+      </div>
+    </section>
+
+    <section id="inquiry" class="inquiry">
+      <h2>Plan your trip</h2>
+      <p class="section-sub">Send us an inquiry and get a personalised quote.</p>
+      <form id="inquiry-form" class="inquiry-form" novalidate>
+        <div class="field">
+          <label for="name">Full name</label>
+          <input id="name" name="name" type="text" required placeholder="Jane Traveller" />
+        </div>
+        <div class="field">
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email" required placeholder="jane@example.com" />
+        </div>
+        <div class="field">
+          <label for="destination">Destination</label>
+          <input id="destination" name="destination" type="text" required placeholder="Kerala, India" />
+        </div>
+        <div class="field">
+          <label for="travelers">Travellers</label>
+          <input id="travelers" name="travelers" type="number" min="1" value="2" />
+        </div>
+        <div class="field field-wide">
+          <label for="message">Message</label>
+          <textarea id="message" name="message" rows="3" placeholder="Anything we should know?"></textarea>
+        </div>
+        <button class="btn btn-primary" type="submit">Send inquiry</button>
+      </form>
+      <div id="inquiry-result" class="inquiry-result" role="status" aria-live="polite"></div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>&copy; <span id="year"></span> Saba Tour &amp; Travels. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>
