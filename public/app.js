@@ -30,6 +30,13 @@ async function loadPackages() {
 const form = document.getElementById('inquiry-form');
 const result = document.getElementById('inquiry-result');
 
+form.addEventListener('input', () => {
+  if (result.textContent) {
+    result.className = 'inquiry-result';
+    result.textContent = '';
+  }
+});
+
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
   result.className = 'inquiry-result';
