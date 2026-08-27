@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Web URL Scanner — Selenium</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Web URL Scanner</h1>
+      <p>Enter any website URL. Selenium will scan the page for links, images, forms, modals, headings, and more.</p>
+    </header>
+
+    <form id="scan-form" class="scan-form">
+      <div class="input-row">
+        <input
+          type="url"
+          id="url-input"
+          name="url"
+          placeholder="https://example.com"
+          required
+          autocomplete="url"
+        >
+        <button type="submit" id="scan-btn">Scan Page</button>
+      </div>
+    </form>
+
+    <div id="status" class="status hidden"></div>
+
+    <section id="summary" class="summary hidden">
+      <h2>Scan Summary</h2>
+      <div class="summary-grid" id="summary-grid"></div>
+    </section>
+
+    <section id="results" class="results hidden">
+      <div class="tabs">
+        <button class="tab active" data-tab="headings">Headings</button>
+        <button class="tab" data-tab="links">Links</button>
+        <button class="tab" data-tab="images">Images</button>
+        <button class="tab" data-tab="forms">Forms</button>
+        <button class="tab" data-tab="modals">Modals</button>
+        <button class="tab" data-tab="meta">Meta</button>
+        <button class="tab" data-tab="scripts">Scripts</button>
+        <button class="tab" data-tab="raw">Raw JSON</button>
+      </div>
+
+      <div class="tab-panel active" id="panel-headings"></div>
+      <div class="tab-panel" id="panel-links"></div>
+      <div class="tab-panel" id="panel-images"></div>
+      <div class="tab-panel" id="panel-forms"></div>
+      <div class="tab-panel" id="panel-modals"></div>
+      <div class="tab-panel" id="panel-meta"></div>
+      <div class="tab-panel" id="panel-scripts"></div>
+      <div class="tab-panel" id="panel-raw"></div>
+    </section>
+  </div>
+
+  <script>
+    const form = document.getElementById('scan-form');
+    const urlInput = document.getElementById('url-input');
+    const scanBtn = document.getElementById('scan-btn');
+    const statusEl = document.getElementById('status');
+    const summaryEl = document.getElementById('summary');
+    const summaryGrid = document.getElementById('summary-grid');
+    const resultsEl = document.getElementById('results');
+
+    function show(el) { el.classList.remove('hidden'); }
+    function hide(el) { el.classList.add('hidden'); }
+
+    function setStatus(message, type = 'info') {
+      statusEl.textContent = message;
+      statusEl.className = `status ${type}`;
+      show(statusEl);
+    }
+
+    function renderSummary(data) {
+      const items = [
+        ['Title', data.title || '—'],
+        ['Load Time', `${data.load_time_ms} ms`],
+        ['Page Size', `${data.page_source_length.toLocaleString()} chars`],
+        ['Links', data.links.length],
+        ['Images', data.images.length],
+        ['Forms', data.forms.length],
+        ['Modals', data.modals.length],
+        ['Scripts', data.scripts.length],
+        ['Iframes', data.iframes.length],
+      ];
+
+      summaryGrid.innerHTML = items.map(([label, value]) =>
+        `<div class="summary-item"><span>${label}</span><strong>${value}</strong></div>`
+      ).join('');
+      show(summaryEl);
+    }
+
+    function renderHeadings(headings) {
+      const keys = Object.keys(headings);
+      if (!keys.length) return '<p class="empty">No headings found.</p>';
+      return keys.map(k =>
+        `<div class="block"><h3>${k.toUpperCase()} (${headings[k].length})</h3><ul>` +
+        headings[k].map(t => `<li>${escapeHtml(t)}</li>`).join('') +
+        '</ul></div>'
+      ).join('');
+    }
+
+    function renderLinks(links) {
+      if (!links.length) return '<p class="empty">No links found.</p>';
+      return `<table><thead><tr><th>Text</th><th>URL</th><th>Target</th></tr></thead><tbody>` +
+        links.map(l =>
+          `<tr><td>${escapeHtml(l.text || '—')}</td><td><a href="${escapeHtml(l.href)}" target="_blank" rel="noopener">${escapeHtml(l.href)}</a></td><td>${escapeHtml(l.target || '—')}</td></tr>`
+        ).join('') + '</tbody></table>';
+    }
+
+    function renderImages(images) {
+      if (!images.length) return '<p class="empty">No images found.</p>';
+      return `<div class="image-grid">` +
+        images.map(img =>
+          `<div class="image-card"><img src="${escapeHtml(img.src)}" alt="" loading="lazy" onerror="this.style.display='none'"><p><strong>Alt:</strong> ${escapeHtml(img.alt || '—')}</p><p class="truncate">${escapeHtml(img.src)}</p></div>`
+        ).join('') + '</div>';
+    }
+
+    function renderForms(forms) {
+      if (!forms.length) return '<p class="empty">No forms found.</p>';
+      return forms.map((f, i) =>
+        `<div class="block"><h3>Form ${i + 1}</h3><p><strong>Action:</strong> ${escapeHtml(f.action)} | <strong>Method:</strong> ${escapeHtml(f.method)}</p>` +
+        (f.inputs.length ? `<table><thead><tr><th>Tag</th><th>Type</th><th>Name</th><th>ID</th><th>Placeholder</th></tr></thead><tbody>` +
+          f.inputs.map(inp =>
+            `<tr><td>${escapeHtml(inp.tag)}</td><td>${escapeHtml(inp.type || '—')}</td><td>${escapeHtml(inp.name || '—')}</td><td>${escapeHtml(inp.id || '—')}</td><td>${escapeHtml(inp.placeholder || '—')}</td></tr>`
+          ).join('') + '</tbody></table>' : '<p class="empty">No inputs.</p>') +
+        '</div>'
+      ).join('');
+    }
+
+    function renderModals(modals) {
+      if (!modals.length) return '<p class="empty">No modals detected.</p>';
+      return modals.map((m, i) =>
+        `<div class="block"><h3>Modal ${i + 1}</h3>` +
+        `<p><strong>Selector:</strong> ${escapeHtml(m.selector)}</p>` +
+        `<p><strong>ID:</strong> ${escapeHtml(m.id || '—')} | <strong>Visible:</strong> ${m.visible ? 'Yes' : 'No'}</p>` +
+        `<p class="preview">${escapeHtml(m.text_preview || '—')}</p></div>`
+      ).join('');
+    }
+
+    function renderMeta(meta) {
+      if (!meta.length) return '<p class="empty">No meta tags found.</p>';
+      return `<table><thead><tr><th>Name</th><th>Content</th></tr></thead><tbody>` +
+        meta.map(m =>
+          `<tr><td>${escapeHtml(m.name)}</td><td>${escapeHtml(m.content)}</td></tr>`
+        ).join('') + '</tbody></table>';
+    }
+
+    function renderScripts(scripts, iframes) {
+      let html = '';
+      if (scripts.length) {
+        html += '<h3>External Scripts</h3><ul>' +
+          scripts.map(s => `<li><a href="${escapeHtml(s)}" target="_blank" rel="noopener">${escapeHtml(s)}</a></li>`).join('') +
+          '</ul>';
+      }
+      if (iframes.length) {
+        html += '<h3>Iframes</h3><ul>' +
+          iframes.map(s => `<li><a href="${escapeHtml(s)}" target="_blank" rel="noopener">${escapeHtml(s)}</a></li>`).join('') +
+          '</ul>';
+      }
+      if (!html) return '<p class="empty">No external scripts or iframes found.</p>';
+      return html;
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function renderResults(data) {
+      document.getElementById('panel-headings').innerHTML = renderHeadings(data.headings || {});
+      document.getElementById('panel-links').innerHTML = renderLinks(data.links || []);
+      document.getElementById('panel-images').innerHTML = renderImages(data.images || []);
+      document.getElementById('panel-forms').innerHTML = renderForms(data.forms || []);
+      document.getElementById('panel-modals').innerHTML = renderModals(data.modals || []);
+      document.getElementById('panel-meta').innerHTML = renderMeta(data.meta_tags || []);
+      document.getElementById('panel-scripts').innerHTML = renderScripts(data.scripts || [], data.iframes || []);
+      document.getElementById('panel-raw').innerHTML = `<pre>${escapeHtml(JSON.stringify(data, null, 2))}</pre>`;
+      show(resultsEl);
+    }
+
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById(`panel-${tab.dataset.tab}`).classList.add('active');
+      });
+    });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const url = urlInput.value.trim();
+      if (!url) return;
+
+      scanBtn.disabled = true;
+      scanBtn.textContent = 'Scanning…';
+      hide(summaryEl);
+      hide(resultsEl);
+      setStatus('Starting Selenium scan… This may take a few seconds.', 'info');
+
+      try {
+        const res = await fetch('/api/scan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url }),
+        });
+        const data = await res.json();
+
+        if (!res.ok || !data.success) {
+          const errors = (data.errors || ['Scan failed']).join('; ');
+          setStatus(`Error: ${errors}`, 'error');
+          return;
+        }
+
+        setStatus(`Scan complete for ${data.url}`, 'success');
+        renderSummary(data);
+        renderResults(data);
+      } catch (err) {
+        setStatus(`Network error: ${err.message}`, 'error');
+      } finally {
+        scanBtn.disabled = false;
+        scanBtn.textContent = 'Scan Page';
+      }
+    });
+  </script>
+</body>
+</html>
