@@ -1,0 +1,480 @@
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.auth import get_current_user
+from app.auth import log_action
+from app.database import AsyncSessionLocal, get_db
+from app.models import (
+    Alert,
+    CrawlIssue,
+    CrawlRun,
+    CrawlStatus,
+    GscMetric,
+    Keyword,
+    Page,
+    RankHistory,
+    SeoOpportunity,
+    SeoTask,
+    TaskStatus,
+    User,
+    Website,
+)
+from app.schemas import (
+    ChatMessageCreate,
+    ChatResponse,
+    ChatMessageOut,
+    CompetitorCreate,
+    CompetitorOut,
+    CrawlIssueOut,
+    CrawlRunOut,
+    DashboardOverview,
+    GscMetricCreate,
+    InternalLinkRecommendation,
+    KeywordCreate,
+    KeywordOut,
+    OpportunityOut,
+    PageOut,
+    SerpAnalysisOut,
+    SerpAnalysisRequest,
+    TaskCreate,
+    TaskOut,
+    TaskUpdate,
+    WebsiteCreate,
+    WebsiteOut,
+)
+from app.services.ai_agent import AiSeoAgent
+from app.services.audit import recommend_internal_links
+from app.services.crawl_service import refresh_opportunities, run_website_crawl
+from app.services.opportunity import position_segment, rank_change_label
+from app.services.serp import compare_page_with_serp, fetch_serp_competitors
+from app.models import Competitor, Backlink
+
+router = APIRouter(prefix="/websites", tags=["websites"])
+
+
+async def _get_owned_website(db: AsyncSession, website_id: int, user: User) -> Website:
+    result = await db.execute(select(Website).where(Website.id == website_id, Website.owner_id == user.id))
+    website = result.scalar_one_or_none()
+    if not website:
+        raise HTTPException(status_code=404, detail="Website not found")
+    return website
+
+
+async def _background_crawl(website_id: int) -> None:
+    async with AsyncSessionLocal() as db:
+        await run_website_crawl(db, website_id)
+        await refresh_opportunities(db, website_id)
+
+
+@router.post("", response_model=WebsiteOut)
+async def create_website(
+    payload: WebsiteCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    website = Website(owner_id=current_user.id, **payload.model_dump())
+    db.add(website)
+    await db.commit()
+    await db.refresh(website)
+    await log_action(db, "website_created", website_id=website.id, user_id=current_user.id)
+    return website
+
+
+@router.get("", response_model=list[WebsiteOut])
+async def list_websites(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    result = await db.execute(select(Website).where(Website.owner_id == current_user.id))
+    return result.scalars().all()
+
+
+@router.get("/{website_id}", response_model=WebsiteOut)
+async def get_website(
+    website_id: int, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    return await _get_owned_website(db, website_id, current_user)
+
+
+@router.post("/{website_id}/crawl", response_model=CrawlRunOut)
+async def start_crawl(
+    website_id: int,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    website = await _get_owned_website(db, website_id, current_user)
+    background_tasks.add_task(_background_crawl, website.id)
+    await log_action(db, "crawl_started", website_id=website.id, user_id=current_user.id)
+    return CrawlRunOut(
+        id=0,
+        status=CrawlStatus.PENDING,
+        pages_crawled=0,
+        issues_found=0,
+        started_at=None,
+        completed_at=None,
+        error_message=None,
+    )
+
+
+@router.get("/{website_id}/crawl-runs", response_model=list[CrawlRunOut])
+async def list_crawl_runs(
+    website_id: int, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    await _get_owned_website(db, website_id, current_user)
+    result = await db.execute(
+        select(CrawlRun).where(CrawlRun.website_id == website_id).order_by(CrawlRun.id.desc())
+    )
+    return result.scalars().all()
+
+
+@router.get("/{website_id}/issues", response_model=list[CrawlIssueOut])
+async def list_issues(
+    website_id: int, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    await _get_owned_website(db, website_id, current_user)
+    result = await db.execute(
+        select(CrawlIssue, Page.url)
+        .join(CrawlRun, CrawlIssue.crawl_run_id == CrawlRun.id)
+        .join(Page, CrawlIssue.page_id == Page.id, isouter=True)
+        .where(CrawlRun.website_id == website_id)
+        .order_by(CrawlIssue.id.desc())
+    )
+    issues = []
+    for issue, page_url in result.all():
+        item = CrawlIssueOut.model_validate(issue)
+        item.page_url = page_url
+        issues.append(item)
+    return issues
+
+
+@router.get("/{website_id}/pages", response_model=list[PageOut])
+async def list_pages(
+    website_id: int, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    await _get_owned_website(db, website_id, current_user)
+    result = await db.execute(select(Page).where(Page.website_id == website_id).order_by(Page.path))
+    return result.scalars().all()
+
+
+@router.post("/{website_id}/keywords", response_model=KeywordOut)
+async def add_keyword(
+    website_id: int,
+    payload: KeywordCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    await _get_owned_website(db, website_id, current_user)
+    keyword = Keyword(website_id=website_id, **payload.model_dump(exclude={"position"}))
+    db.add(keyword)
+    await db.flush()
+    if payload.position is not None:
+        db.add(RankHistory(keyword_id=keyword.id, page_id=payload.target_page_id, position=payload.position))
+    await db.commit()
+    await db.refresh(keyword)
+    await refresh_opportunities(db, website_id)
+    out = KeywordOut.model_validate(keyword)
+    out.latest_position = payload.position
+    return out
+
+
+@router.get("/{website_id}/keywords", response_model=list[KeywordOut])
+async def list_keywords(
+    website_id: int, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    await _get_owned_website(db, website_id, current_user)
+    keywords = (await db.execute(select(Keyword).where(Keyword.website_id == website_id))).scalars().all()
+    output: list[KeywordOut] = []
+    for keyword in keywords:
+        history = (
+            await db.execute(
+                select(RankHistory)
+                .where(RankHistory.keyword_id == keyword.id)
+                .order_by(RankHistory.recorded_at.desc())
+                .limit(5)
+            )
+        ).scalars().all()
+        item = KeywordOut.model_validate(keyword)
+        item.latest_position = history[0].position if history else None
+        item.position_change = rank_change_label(history)
+        output.append(item)
+    return output
+
+
+@router.get("/{website_id}/keywords/{keyword_id}/history", response_model=list[dict])
+async def keyword_history(
+    website_id: int,
+    keyword_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    await _get_owned_website(db, website_id, current_user)
+    rows = (
+        await db.execute(
+            select(RankHistory).where(RankHistory.keyword_id == keyword_id).order_by(RankHistory.recorded_at.asc())
+        )
+    ).scalars().all()
+    return [{"position": r.position, "recorded_at": r.recorded_at.isoformat()} for r in rows]
+
+
+@router.post("/{website_id}/gsc-metrics")
+async def add_gsc_metric(
+    website_id: int,
+    payload: GscMetricCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    await _get_owned_website(db, website_id, current_user)
+    metric = GscMetric(website_id=website_id, **payload.model_dump())
+    db.add(metric)
+    await db.commit()
+    await refresh_opportunities(db, website_id)
+    return {"status": "ok"}
+
+
+@router.get("/{website_id}/opportunities", response_model=list[OpportunityOut])
+async def list_opportunities(
+    website_id: int, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    await _get_owned_website(db, website_id, current_user)
+    result = await db.execute(
+        select(SeoOpportunity)
+        .where(SeoOpportunity.website_id == website_id)
+        .order_by(SeoOpportunity.score.desc())
+    )
+    return result.scalars().all()
+
+
+@router.post("/{website_id}/opportunities/refresh", response_model=list[OpportunityOut])
+async def recompute_opportunities(
+    website_id: int, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    await _get_owned_website(db, website_id, current_user)
+    return await refresh_opportunities(db, website_id)
+
+
+@router.get("/{website_id}/tasks", response_model=list[TaskOut])
+async def list_tasks(
+    website_id: int, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    await _get_owned_website(db, website_id, current_user)
+    result = await db.execute(select(SeoTask).where(SeoTask.website_id == website_id).order_by(SeoTask.id.desc()))
+    return result.scalars().all()
+
+
+@router.post("/{website_id}/tasks", response_model=TaskOut)
+async def create_task(
+    website_id: int,
+    payload: TaskCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    await _get_owned_website(db, website_id, current_user)
+    task = SeoTask(website_id=website_id, **payload.model_dump())
+    db.add(task)
+    await db.commit()
+    await db.refresh(task)
+    return task
+
+
+@router.patch("/{website_id}/tasks/{task_id}", response_model=TaskOut)
+async def update_task(
+    website_id: int,
+    task_id: int,
+    payload: TaskUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    await _get_owned_website(db, website_id, current_user)
+    result = await db.execute(select(SeoTask).where(SeoTask.id == task_id, SeoTask.website_id == website_id))
+    task = result.scalar_one_or_none()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    for key, value in payload.model_dump(exclude_unset=True).items():
+        setattr(task, key, value)
+    await db.commit()
+    await db.refresh(task)
+    return task
+
+
+@router.post("/{website_id}/chat", response_model=ChatResponse)
+async def chat(
+    website_id: int,
+    payload: ChatMessageCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    website = await _get_owned_website(db, website_id, current_user)
+    agent = AiSeoAgent(db, website)
+    reply, evidence, tasks = await agent.respond(payload.message)
+    conversation = await agent.save_conversation(
+        current_user.id, payload.message, reply, evidence, payload.conversation_id
+    )
+    return ChatResponse(
+        conversation_id=conversation.id,
+        reply=ChatMessageOut(role="assistant", content=reply, evidence=evidence),
+        tasks_created=[TaskOut.model_validate(t) for t in tasks],
+    )
+
+
+@router.get("/{website_id}/dashboard", response_model=DashboardOverview)
+async def dashboard(
+    website_id: int, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    website = await _get_owned_website(db, website_id, current_user)
+    pages_count = await db.scalar(select(func.count()).select_from(Page).where(Page.website_id == website_id))
+    issues_count = await db.scalar(
+        select(func.count())
+        .select_from(CrawlIssue)
+        .join(CrawlRun, CrawlIssue.crawl_run_id == CrawlRun.id)
+        .where(CrawlRun.website_id == website_id)
+    )
+    severity_rows = await db.execute(
+        select(CrawlIssue.severity, func.count())
+        .join(CrawlRun, CrawlIssue.crawl_run_id == CrawlRun.id)
+        .where(CrawlRun.website_id == website_id)
+        .group_by(CrawlIssue.severity)
+    )
+    issues_by_severity = {row[0].value: row[1] for row in severity_rows.all()}
+    keywords = (await db.execute(select(Keyword).where(Keyword.website_id == website_id))).scalars().all()
+    top_10 = 0
+    opportunity_zone = 0
+    for keyword in keywords:
+        latest = (
+            await db.execute(
+                select(RankHistory.position)
+                .where(RankHistory.keyword_id == keyword.id)
+                .order_by(RankHistory.recorded_at.desc())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        segment = position_segment(latest)
+        if segment in ("1-3", "4-10"):
+            top_10 += 1
+        if segment == "11-20":
+            opportunity_zone += 1
+    pending_tasks = await db.scalar(
+        select(func.count()).select_from(SeoTask).where(
+            SeoTask.website_id == website_id, SeoTask.status != TaskStatus.COMPLETED
+        )
+    )
+    opportunities = (
+        await db.execute(
+            select(SeoOpportunity)
+            .where(SeoOpportunity.website_id == website_id)
+            .order_by(SeoOpportunity.score.desc())
+            .limit(5)
+        )
+    ).scalars().all()
+    alerts = (
+        await db.execute(
+            select(Alert).where(Alert.website_id == website_id).order_by(Alert.created_at.desc()).limit(5)
+        )
+    ).scalars().all()
+    return DashboardOverview(
+        website=WebsiteOut.model_validate(website),
+        total_pages=pages_count or 0,
+        total_issues=issues_count or 0,
+        issues_by_severity=issues_by_severity,
+        total_keywords=len(keywords),
+        keywords_top_10=top_10,
+        keywords_opportunity_zone=opportunity_zone,
+        pending_tasks=pending_tasks or 0,
+        top_opportunities=[OpportunityOut.model_validate(o) for o in opportunities],
+        recent_alerts=[
+            {"title": a.title, "severity": a.severity.value, "message": a.message} for a in alerts
+        ],
+    )
+
+
+@router.post("/{website_id}/serp-analysis", response_model=SerpAnalysisOut)
+async def serp_analysis(
+    website_id: int,
+    payload: SerpAnalysisRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    await _get_owned_website(db, website_id, current_user)
+    competitors = await fetch_serp_competitors(payload.keyword)
+    user_page_data = None
+    if payload.page_id:
+        page = (
+            await db.execute(select(Page).where(Page.id == payload.page_id, Page.website_id == website_id))
+        ).scalar_one_or_none()
+        if page:
+            user_page_data = {
+                "path": page.path,
+                "title": page.title,
+                "h1": page.h1,
+                "word_count": page.word_count,
+                "meta_description": page.meta_description,
+                "internal_links_in": page.internal_links_in,
+                "has_schema": page.has_schema,
+            }
+    comparison = compare_page_with_serp(user_page_data, competitors)
+    return SerpAnalysisOut(
+        keyword=payload.keyword,
+        user_page=user_page_data,
+        competitors=competitors,
+        content_gaps=comparison["content_gaps"],
+        recommendations=comparison["recommendations"],
+    )
+
+
+@router.get("/{website_id}/internal-links", response_model=list[InternalLinkRecommendation])
+async def internal_links(
+    website_id: int, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    await _get_owned_website(db, website_id, current_user)
+    pages = (await db.execute(select(Page).where(Page.website_id == website_id))).scalars().all()
+    return recommend_internal_links(pages)
+
+
+@router.post("/{website_id}/competitors", response_model=CompetitorOut)
+async def add_competitor(
+    website_id: int,
+    payload: CompetitorCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    await _get_owned_website(db, website_id, current_user)
+    competitor = Competitor(website_id=website_id, **payload.model_dump())
+    db.add(competitor)
+    await db.commit()
+    await db.refresh(competitor)
+    return competitor
+
+
+@router.get("/{website_id}/competitors", response_model=list[CompetitorOut])
+async def list_competitors(
+    website_id: int, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    await _get_owned_website(db, website_id, current_user)
+    return (await db.execute(select(Competitor).where(Competitor.website_id == website_id))).scalars().all()
+
+
+@router.get("/{website_id}/backlinks/gap")
+async def backlink_gap(
+    website_id: int, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    await _get_owned_website(db, website_id, current_user)
+    competitor_links = (
+        await db.execute(select(Backlink).where(Backlink.competitor_id.is_not(None)).limit(100))
+    ).scalars().all()
+    site_links = (
+        await db.execute(select(Backlink).where(Backlink.website_id == website_id))
+    ).scalars().all()
+    site_domains = {b.source_domain for b in site_links}
+    gaps = [
+        {
+            "source_domain": link.source_domain,
+            "source_url": link.source_url,
+            "anchor_text": link.anchor_text,
+            "competitor_target": link.target_url,
+        }
+        for link in competitor_links
+        if link.source_domain not in site_domains
+    ]
+    return {
+        "gap_count": len(gaps),
+        "gaps": gaps[:50],
+        "note": "Connect a backlink data provider to populate live gap analysis.",
+    }
