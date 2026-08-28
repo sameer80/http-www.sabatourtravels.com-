@@ -40,6 +40,10 @@ from app.schemas import (
     TaskCreate,
     TaskOut,
     TaskUpdate,
+    LinkProspectSearchRequest,
+    LinkProspectSearchOut,
+    LinkProspectOut,
+    LinkProspectPostRequest,
     WebsiteCreate,
     WebsiteOut,
 )
@@ -48,7 +52,8 @@ from app.services.audit import recommend_internal_links
 from app.services.crawl_service import refresh_opportunities, run_website_crawl
 from app.services.opportunity import position_segment, rank_change_label
 from app.services.serp import compare_page_with_serp, fetch_serp_competitors
-from app.models import Competitor, Backlink
+from app.services.link_outreach import build_submission_plan, search_google_prospects
+from app.models import Competitor, Backlink, LinkProspect, OutreachStatus
 
 router = APIRouter(prefix="/websites", tags=["websites"])
 
@@ -478,3 +483,128 @@ async def backlink_gap(
         "gaps": gaps[:50],
         "note": "Connect a backlink data provider to populate live gap analysis.",
     }
+
+
+@router.post("/{website_id}/link-prospects/search", response_model=LinkProspectSearchOut)
+async def search_link_prospects(
+    website_id: int,
+    payload: LinkProspectSearchRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    website = await _get_owned_website(db, website_id, current_user)
+    raw = await search_google_prospects(payload.keyword)
+    filtered = [
+        item
+        for item in raw
+        if item["domain_authority"] >= payload.min_da and item["page_authority"] >= payload.min_pa
+    ]
+
+    saved: list[LinkProspect] = []
+    for item in filtered:
+        existing = (
+            await db.execute(
+                select(LinkProspect).where(
+                    LinkProspect.website_id == website_id,
+                    LinkProspect.prospect_url == item["prospect_url"],
+                    LinkProspect.keyword == payload.keyword,
+                )
+            )
+        ).scalar_one_or_none()
+        if existing:
+            existing.domain_authority = item["domain_authority"]
+            existing.page_authority = item["page_authority"]
+            existing.page_rank = item["page_rank"]
+            saved.append(existing)
+            continue
+        prospect = LinkProspect(
+            website_id=website_id,
+            keyword=payload.keyword,
+            target_url=payload.target_url,
+            prospect_url=item["prospect_url"],
+            prospect_domain=item["prospect_domain"],
+            prospect_title=item.get("prospect_title"),
+            prospect_type=item["prospect_type"],
+            domain_authority=item["domain_authority"],
+            page_authority=item["page_authority"],
+            page_rank=item["page_rank"],
+            suggested_anchor=payload.anchor_text or payload.keyword,
+            google_query=item.get("google_query"),
+            outreach_status=OutreachStatus.READY,
+        )
+        db.add(prospect)
+        saved.append(prospect)
+
+    await db.commit()
+    for p in saved:
+        await db.refresh(p)
+
+    plan = build_submission_plan(payload.target_url, payload.keyword, payload.anchor_text)
+    await log_action(
+        db,
+        "link_prospects_searched",
+        website_id=website.id,
+        user_id=current_user.id,
+        details={"keyword": payload.keyword, "found": len(saved)},
+    )
+    return LinkProspectSearchOut(
+        keyword=payload.keyword,
+        target_url=payload.target_url,
+        found=len(saved),
+        prospects=[LinkProspectOut.model_validate(p) for p in saved],
+        submission_plan=plan,
+    )
+
+
+@router.get("/{website_id}/link-prospects", response_model=list[LinkProspectOut])
+async def list_link_prospects(
+    website_id: int,
+    min_da: float = 0,
+    status: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    await _get_owned_website(db, website_id, current_user)
+    query = select(LinkProspect).where(LinkProspect.website_id == website_id, LinkProspect.domain_authority >= min_da)
+    if status:
+        query = query.where(LinkProspect.outreach_status == OutreachStatus(status))
+    result = await db.execute(query.order_by(LinkProspect.domain_authority.desc()))
+    return result.scalars().all()
+
+
+@router.patch("/{website_id}/link-prospects/{prospect_id}", response_model=LinkProspectOut)
+async def update_link_prospect(
+    website_id: int,
+    prospect_id: int,
+    payload: LinkProspectPostRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    await _get_owned_website(db, website_id, current_user)
+    result = await db.execute(
+        select(LinkProspect).where(LinkProspect.id == prospect_id, LinkProspect.website_id == website_id)
+    )
+    prospect = result.scalar_one_or_none()
+    if not prospect:
+        raise HTTPException(status_code=404, detail="Prospect not found")
+
+    prospect.outreach_status = OutreachStatus(payload.outreach_status)
+    if payload.posted_url:
+        prospect.posted_url = payload.posted_url
+    if payload.notes:
+        prospect.notes = payload.notes
+    if payload.outreach_status in ("posted", "live"):
+        from datetime import UTC, datetime
+
+        prospect.posted_at = datetime.now(UTC)
+
+    await db.commit()
+    await db.refresh(prospect)
+    await log_action(
+        db,
+        "link_prospect_updated",
+        website_id=website_id,
+        user_id=current_user.id,
+        details={"prospect_id": prospect_id, "status": payload.outreach_status},
+    )
+    return prospect

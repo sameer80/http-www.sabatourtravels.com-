@@ -34,6 +34,14 @@ class TaskStatus(str, enum.Enum):
     CANCELLED = "cancelled"
 
 
+class OutreachStatus(str, enum.Enum):
+    FOUND = "found"
+    READY = "ready_to_post"
+    POSTED = "posted"
+    LIVE = "live"
+    REJECTED = "rejected"
+
+
 class CrawlStatus(str, enum.Enum):
     PENDING = "pending"
     RUNNING = "running"
@@ -78,6 +86,7 @@ class Website(Base):
     experiments: Mapped[list["SeoExperiment"]] = relationship(back_populates="website", cascade="all, delete-orphan")
     alerts: Mapped[list["Alert"]] = relationship(back_populates="website", cascade="all, delete-orphan")
     audit_logs: Mapped[list["AuditLog"]] = relationship(back_populates="website", cascade="all, delete-orphan")
+    link_prospects: Mapped[list["LinkProspect"]] = relationship(back_populates="website", cascade="all, delete-orphan")
 
 
 class Page(Base):
@@ -243,6 +252,31 @@ class Backlink(Base):
 
 
     competitor: Mapped["Competitor | None"] = relationship(back_populates="backlinks")
+
+
+class LinkProspect(Base):
+    __tablename__ = "link_prospects"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    website_id: Mapped[int] = mapped_column(ForeignKey("websites.id"), index=True)
+    keyword: Mapped[str] = mapped_column(String(500), index=True)
+    target_url: Mapped[str] = mapped_column(String(1000))
+    prospect_url: Mapped[str] = mapped_column(String(1000))
+    prospect_domain: Mapped[str] = mapped_column(String(255), index=True)
+    prospect_title: Mapped[str | None] = mapped_column(String(500))
+    prospect_type: Mapped[str] = mapped_column(String(100), default="editorial")
+    domain_authority: Mapped[float] = mapped_column(Float, default=0.0)
+    page_authority: Mapped[float] = mapped_column(Float, default=0.0)
+    page_rank: Mapped[float] = mapped_column(Float, default=0.0)
+    suggested_anchor: Mapped[str | None] = mapped_column(String(500))
+    google_query: Mapped[str | None] = mapped_column(String(500))
+    outreach_status: Mapped[OutreachStatus] = mapped_column(Enum(OutreachStatus), default=OutreachStatus.FOUND)
+    posted_url: Mapped[str | None] = mapped_column(String(1000))
+    notes: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    website: Mapped["Website"] = relationship(back_populates="link_prospects")
 
 
 class InternalLink(Base):

@@ -250,3 +250,47 @@ class GscMetricCreate(BaseModel):
     impressions: int = 0
     ctr: float = 0.0
     average_position: float = 0.0
+
+
+class LinkProspectSearchRequest(BaseModel):
+    keyword: str
+    target_url: str
+    min_da: float = 30
+    min_pa: float = 25
+    anchor_text: str | None = None
+
+
+class LinkProspectOut(BaseModel):
+    id: int
+    keyword: str
+    target_url: str
+    prospect_url: str
+    prospect_domain: str
+    prospect_title: str | None
+    prospect_type: str
+    domain_authority: float
+    page_authority: float
+    page_rank: float
+    suggested_anchor: str | None
+    google_query: str | None
+    outreach_status: str
+    posted_url: str | None
+    notes: str | None
+    created_at: datetime
+    posted_at: datetime | None
+
+    model_config = {"from_attributes": True}
+
+
+class LinkProspectPostRequest(BaseModel):
+    posted_url: str | None = None
+    notes: str | None = None
+    outreach_status: str = "posted"
+
+
+class LinkProspectSearchOut(BaseModel):
+    keyword: str
+    target_url: str
+    found: int
+    prospects: list[LinkProspectOut]
+    submission_plan: dict[str, str]

@@ -12,6 +12,7 @@ const nav = [
   { href: "/dashboard/serp", label: "SERP Analysis" },
   { href: "/dashboard/internal-links", label: "Internal Links" },
   { href: "/dashboard/backlinks", label: "Backlink Gap" },
+  { href: "/dashboard/link-outreach", label: "Link Outreach" },
   { href: "/dashboard/chat", label: "AI SEO Chat" },
 ];
 

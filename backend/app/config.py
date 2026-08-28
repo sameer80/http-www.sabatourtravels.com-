@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24 * 7
     openai_api_key: str = ""
+    openpagerank_api_key: str = ""
     cors_origins: str = "http://localhost:3000"
     max_crawl_pages: int = 40
     crawl_timeout_seconds: int = 15
