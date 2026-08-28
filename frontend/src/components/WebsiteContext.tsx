@@ -87,9 +87,9 @@ export function WebsiteSelector() {
 
 export function OnboardingCard() {
   const { refreshWebsites } = useWebsite();
-  const [name, setName] = useState("Saba Tour Travels");
-  const [domain, setDomain] = useState("sabatourtravels.com");
-  const [baseUrl, setBaseUrl] = useState("https://www.sabatourtravels.com");
+  const [name, setName] = useState("Saba Cabs");
+  const [domain, setDomain] = useState("sabacabs.com");
+  const [baseUrl, setBaseUrl] = useState("https://sabacabs.com");
   const [loading, setLoading] = useState(false);
 
   async function createWebsite(e: React.FormEvent) {
