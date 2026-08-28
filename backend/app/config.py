@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60 * 24 * 7
     openai_api_key: str = ""
     cors_origins: str = "http://localhost:3000"
-    max_crawl_pages: int = 100
+    max_crawl_pages: int = 40
     crawl_timeout_seconds: int = 15
     crawl_delay_seconds: float = 1.5
     crawl_max_retries: int = 4
