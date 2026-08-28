@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import asyncio
 from collections import deque
 from dataclasses import dataclass, field
 from urllib.parse import urljoin, urlparse
@@ -30,6 +31,14 @@ class CrawledPage:
     content_text: str = ""
 
 
+def build_crawl_headers() -> dict[str, str]:
+    return {
+        "User-Agent": settings.crawl_user_agent,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+
+
 class WebsiteCrawler:
     def __init__(self, base_url: str, max_pages: int | None = None):
         self.base_url = base_url.rstrip("/")
@@ -50,27 +59,62 @@ class WebsiteCrawler:
         parsed = urlparse(url)
         return parsed.netloc == self.domain or parsed.netloc == ""
 
-    async def fetch_robots_and_sitemap(self, client: httpx.AsyncClient) -> None:
-        try:
-            robots_resp = await client.get(f"{self.base_url}/robots.txt", follow_redirects=True)
-            if robots_resp.status_code == 200:
-                self.robots_txt = robots_resp.text
-                for line in self.robots_txt.splitlines():
-                    if line.lower().startswith("sitemap:"):
-                        self.sitemap_urls.append(line.split(":", 1)[1].strip())
-        except httpx.HTTPError:
-            pass
+    def _extract_sitemap_locs(self, xml_text: str) -> tuple[list[str], list[str]]:
+        page_urls = re.findall(r"<loc>(.*?)</loc>", xml_text)
+        if "<sitemapindex" in xml_text.lower():
+            return [], page_urls
+        return page_urls, []
 
-        for sitemap_url in self.sitemap_urls[:3]:
+    async def _get_with_retry(self, client: httpx.AsyncClient, url: str) -> httpx.Response | None:
+        for attempt in range(settings.crawl_max_retries):
             try:
-                resp = await client.get(sitemap_url, follow_redirects=True)
-                if resp.status_code == 200:
-                    locs = re.findall(r"<loc>(.*?)</loc>", resp.text)
-                    for loc in locs[: self.max_pages]:
-                        if self._is_internal(loc):
-                            self.visited.add(self._normalize_url(loc))
+                response = await client.get(url, follow_redirects=True)
+                if response.status_code == 429:
+                    retry_after = response.headers.get("Retry-After")
+                    wait_seconds = int(retry_after) if retry_after and retry_after.isdigit() else min(30, 2 ** (attempt + 2))
+                    await asyncio.sleep(wait_seconds)
+                    continue
+                return response
             except httpx.HTTPError:
-                continue
+                if attempt + 1 >= settings.crawl_max_retries:
+                    return None
+                await asyncio.sleep(2 ** attempt)
+        return None
+
+    async def _load_sitemap_urls(self, client: httpx.AsyncClient, sitemap_url: str, depth: int = 0) -> None:
+        if depth > 2 or sitemap_url in self.sitemap_urls:
+            return
+        self.sitemap_urls.append(sitemap_url)
+        resp = await self._get_with_retry(client, sitemap_url)
+        if not resp or resp.status_code != 200:
+            return
+        page_urls, child_sitemaps = self._extract_sitemap_locs(resp.text)
+        for child in child_sitemaps[:5]:
+            await asyncio.sleep(settings.crawl_delay_seconds)
+            await self._load_sitemap_urls(client, child, depth + 1)
+        for loc in page_urls:
+            if len(self.visited) >= self.max_pages:
+                break
+            if self._is_internal(loc):
+                self.visited.add(self._normalize_url(loc))
+
+    async def fetch_robots_and_sitemap(self, client: httpx.AsyncClient) -> None:
+        resp = await self._get_with_retry(client, f"{self.base_url}/robots.txt")
+        if resp and resp.status_code == 200 and "user-agent" in resp.text.lower():
+            self.robots_txt = resp.text
+            for line in self.robots_txt.splitlines():
+                if line.lower().startswith("sitemap:"):
+                    sitemap_url = line.split(":", 1)[1].strip()
+                    await self._load_sitemap_urls(client, sitemap_url)
+
+        if not self.sitemap_urls:
+            for candidate in (
+                f"{self.base_url}/sitemap.xml",
+                f"{self.base_url}/sitemap_index.xml",
+            ):
+                await self._load_sitemap_urls(client, candidate)
+                if self.visited:
+                    break
 
     def _extract_page(self, url: str, response: httpx.Response, redirect_chain: list[str]) -> CrawledPage:
         soup = BeautifulSoup(response.text, "lxml")
@@ -94,7 +138,7 @@ class WebsiteCrawler:
         internal_links: list[tuple[str, str]] = []
         for anchor in soup.find_all("a", href=True):
             href = urljoin(url, anchor["href"])
-            if self._is_internal(href) and not href.startswith(("mailto:", "tel:", "javascript:")):
+            if self._is_internal(href) and not href.startswith(("mailto:", "tel:", "javascript:", "#")):
                 internal_links.append((self._normalize_url(href), anchor.get_text(strip=True)[:200]))
         path = urlparse(url).path or "/"
         return CrawledPage(
@@ -122,7 +166,7 @@ class WebsiteCrawler:
         async with httpx.AsyncClient(
             timeout=settings.crawl_timeout_seconds,
             follow_redirects=True,
-            headers={"User-Agent": "AI-SEO-Manager-Crawler/1.0"},
+            headers=build_crawl_headers(),
         ) as client:
             await self.fetch_robots_and_sitemap(client)
             for url in list(self.visited):
@@ -132,18 +176,8 @@ class WebsiteCrawler:
             while queue and len(self.pages) < self.max_pages:
                 current_url = queue.popleft()
                 redirect_chain: list[str] = []
-                try:
-                    response = await client.get(current_url)
-                    redirect_chain = [str(r.url) for r in response.history] + [str(response.url)]
-                    page = self._extract_page(str(response.url), response, redirect_chain)
-                    self.pages.append(page)
-
-                    for link_url, _ in page.internal_links:
-                        normalized = self._normalize_url(link_url)
-                        if normalized not in self.visited and len(self.visited) < self.max_pages:
-                            self.visited.add(normalized)
-                            queue.append(normalized)
-                except httpx.HTTPError:
+                response = await self._get_with_retry(client, current_url)
+                if response is None:
                     parsed = urlparse(current_url)
                     self.pages.append(
                         CrawledPage(
@@ -153,4 +187,17 @@ class WebsiteCrawler:
                             redirect_chain=redirect_chain,
                         )
                     )
+                    continue
+
+                redirect_chain = [str(r.url) for r in response.history] + [str(response.url)]
+                page = self._extract_page(str(response.url), response, redirect_chain)
+                self.pages.append(page)
+
+                for link_url, _ in page.internal_links:
+                    normalized = self._normalize_url(link_url)
+                    if normalized not in self.visited and len(self.visited) < self.max_pages:
+                        self.visited.add(normalized)
+                        queue.append(normalized)
+
+                await asyncio.sleep(settings.crawl_delay_seconds)
         return self.pages
