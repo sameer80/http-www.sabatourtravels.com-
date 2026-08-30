@@ -35,6 +35,9 @@ async def bootstrap_saba_tours_portfolio(db: AsyncSession, owner_id: int) -> lis
             language="en",
             positioning=spec.positioning,
             seo_focus=spec.seo_focus,
+            seotooladda_report_url=(
+                "https://smr.seotooladda.com/seo/31026440" if spec.domain == "sabacabs.com" else None
+            ),
         )
         db.add(website)
         await db.flush()

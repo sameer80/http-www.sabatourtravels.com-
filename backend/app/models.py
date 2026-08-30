@@ -76,6 +76,7 @@ class Website(Base):
     positioning: Mapped[str] = mapped_column(String(500), default="")
     seo_focus: Mapped[str] = mapped_column(String(500), default="")
     sitemap_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    seotooladda_report_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     owner: Mapped["User"] = relationship(back_populates="websites")

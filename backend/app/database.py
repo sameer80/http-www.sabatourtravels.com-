@@ -42,6 +42,7 @@ SQLITE_COLUMN_PATCHES = [
     ("websites", "positioning", "VARCHAR(500) DEFAULT ''"),
     ("websites", "seo_focus", "VARCHAR(500) DEFAULT ''"),
     ("websites", "sitemap_url", "VARCHAR(1000)"),
+    ("websites", "seotooladda_report_url", "VARCHAR(1000)"),
     ("rank_history", "previous_position", "FLOAT"),
     ("rank_history", "position_change", "FLOAT"),
     ("rank_history", "search_volume", "INTEGER DEFAULT 0"),

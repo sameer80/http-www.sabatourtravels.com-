@@ -37,6 +37,7 @@ class WebsiteCreate(BaseModel):
     positioning: str = ""
     seo_focus: str = ""
     sitemap_url: str | None = None
+    seotooladda_report_url: str | None = None
 
 
 class WebsiteOut(BaseModel):
@@ -50,6 +51,7 @@ class WebsiteOut(BaseModel):
     positioning: str = ""
     seo_focus: str = ""
     sitemap_url: str | None = None
+    seotooladda_report_url: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -154,8 +156,48 @@ class BacklinkOut(BaseModel):
     is_dofollow: bool
     is_new: bool
     is_lost: bool
+    snapshot_at: datetime | None = None
 
     model_config = {"from_attributes": True}
+
+
+class BacklinkImportItem(BaseModel):
+    source_url: str
+    source_domain: str | None = None
+    target_url: str
+    anchor_text: str | None = None
+    is_dofollow: bool = True
+
+
+class BacklinkPullRequest(BaseModel):
+    report_url: str | None = None
+    replace_existing: bool = False
+    import_rows: list[BacklinkImportItem] | None = None
+
+
+class BacklinkPullResponse(BaseModel):
+    report_url: str
+    report_id: str | None
+    provider: str
+    synced: int
+    new_backlinks: int
+    total_backlinks: int
+    referring_domains: int
+    new_links_flagged: int
+    message: str
+    seotooladda_access: str
+
+
+class BacklinkSummary(BaseModel):
+    total_backlinks: int
+    referring_domains: int
+    new_backlinks: int
+    lost_backlinks: int
+    report_url: str | None
+    backlinks: list[BacklinkOut]
+    gaps: list[dict]
+    gap_count: int
+    note: str
 
 
 class OpportunityOut(BaseModel):

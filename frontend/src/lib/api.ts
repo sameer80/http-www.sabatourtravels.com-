@@ -84,6 +84,8 @@ export const api = {
     }),
   internalLinks: (id: number) => request<any[]>(`/api/websites/${id}/internal-links`),
   backlinkGap: (id: number) => request<any>(`/api/websites/${id}/backlinks/gap`),
+  pullBacklinks: (id: number, data: any) =>
+    request(`/api/websites/${id}/backlinks/pull`, { method: "POST", body: JSON.stringify(data) }),
   searchLinkProspects: (id: number, data: any) =>
     request(`/api/websites/${id}/link-prospects/search`, { method: "POST", body: JSON.stringify(data) }),
   linkProspects: (id: number, minDa = 0) =>

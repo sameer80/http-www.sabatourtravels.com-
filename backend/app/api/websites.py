@@ -23,6 +23,10 @@ from app.models import (
 from app.schemas import (
     AiRecommendationOut,
     ApiSyncLogOut,
+    BacklinkOut,
+    BacklinkPullRequest,
+    BacklinkPullResponse,
+    BacklinkSummary,
     ChatMessageCreate,
     ChatResponse,
     ChatMessageOut,
@@ -52,6 +56,7 @@ from app.schemas import (
 )
 from app.services.ai_agent import AiSeoAgent
 from app.services.audit import recommend_internal_links
+from app.services.backlinks import clear_and_pull, pull_backlinks, DEFAULT_SEOTOOLADDA_REPORT
 from app.services.crawl_service import refresh_opportunities, run_website_crawl
 from app.services.opportunity import position_priority_zone, rank_change_label, zone_label
 from app.services.reports import generate_daily_report
@@ -577,16 +582,18 @@ async def list_competitors(
     return (await db.execute(select(Competitor).where(Competitor.website_id == website_id))).scalars().all()
 
 
-@router.get("/{website_id}/backlinks/gap")
+@router.get("/{website_id}/backlinks/gap", response_model=BacklinkSummary)
 async def backlink_gap(
     website_id: int, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
-    await _get_owned_website(db, website_id, current_user)
+    website = await _get_owned_website(db, website_id, current_user)
+    site_links = (
+        await db.execute(
+            select(Backlink).where(Backlink.website_id == website_id).order_by(Backlink.snapshot_at.desc())
+        )
+    ).scalars().all()
     competitor_links = (
         await db.execute(select(Backlink).where(Backlink.competitor_id.is_not(None)).limit(100))
-    ).scalars().all()
-    site_links = (
-        await db.execute(select(Backlink).where(Backlink.website_id == website_id))
     ).scalars().all()
     site_domains = {b.source_domain for b in site_links}
     gaps = [
@@ -599,11 +606,47 @@ async def backlink_gap(
         for link in competitor_links
         if link.source_domain not in site_domains
     ]
-    return {
-        "gap_count": len(gaps),
-        "gaps": gaps[:50],
-        "note": "Connect a backlink data provider to populate live gap analysis.",
-    }
+    total = len(site_links)
+    referring = len(site_domains)
+    new_links = sum(1 for b in site_links if b.is_new)
+    lost_links = sum(1 for b in site_links if b.is_lost)
+    report_url = website.seotooladda_report_url or DEFAULT_SEOTOOLADDA_REPORT
+    return BacklinkSummary(
+        total_backlinks=total,
+        referring_domains=referring,
+        new_backlinks=new_links,
+        lost_backlinks=lost_links,
+        report_url=report_url,
+        backlinks=[BacklinkOut.model_validate(b) for b in site_links[:100]],
+        gaps=gaps[:50],
+        gap_count=len(gaps),
+        note="Use Pull new report to sync backlinks. Link SEO Tool Adda report for sabacabs.com.",
+    )
+
+
+@router.post("/{website_id}/backlinks/pull", response_model=BacklinkPullResponse)
+async def pull_backlink_report(
+    website_id: int,
+    payload: BacklinkPullRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    website = await _get_owned_website(db, website_id, current_user)
+    imported = [row.model_dump() for row in payload.import_rows] if payload.import_rows else None
+    if payload.replace_existing:
+        result = await clear_and_pull(db, website, payload.report_url or DEFAULT_SEOTOOLADDA_REPORT)
+    elif imported:
+        result = await pull_backlinks(db, website, report_url=payload.report_url, imported=imported)
+    else:
+        result = await pull_backlinks(db, website, report_url=payload.report_url)
+    await log_action(
+        db,
+        "backlinks_pulled",
+        website_id=website.id,
+        user_id=current_user.id,
+        details={"synced": result["synced"], "report_url": result["report_url"]},
+    )
+    return BacklinkPullResponse(**result)
 
 
 @router.post("/{website_id}/link-prospects/search", response_model=LinkProspectSearchOut)
