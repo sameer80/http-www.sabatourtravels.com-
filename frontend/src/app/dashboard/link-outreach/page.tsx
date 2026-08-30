@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { OnboardingCard, useWebsite, WebsiteProvider, WebsiteSelector } from "@/components/WebsiteContext";
+import { OnboardingCard, useWebsite, WebsiteSelector } from "@/components/WebsiteContext";
 
 function formatStatus(status: string) {
   return status.replaceAll("_", " ");
@@ -228,9 +228,5 @@ function LinkOutreachContent() {
 }
 
 export default function LinkOutreachPage() {
-  return (
-    <WebsiteProvider>
-      <LinkOutreachContent />
-    </WebsiteProvider>
-  );
+  return <LinkOutreachContent />;
 }

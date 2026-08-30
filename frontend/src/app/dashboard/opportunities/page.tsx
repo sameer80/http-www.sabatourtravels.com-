@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { OnboardingCard, useWebsite, WebsiteProvider, WebsiteSelector } from "@/components/WebsiteContext";
+import { OnboardingCard, useWebsite, WebsiteSelector } from "@/components/WebsiteContext";
 
 function OpportunitiesContent() {
   const { website } = useWebsite();
@@ -45,5 +45,5 @@ function OpportunitiesContent() {
 }
 
 export default function OpportunitiesPage() {
-  return <WebsiteProvider><OpportunitiesContent /></WebsiteProvider>;
+  return <OpportunitiesContent />;
 }

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { api } from "@/lib/api";
-import { useWebsite, WebsiteGate, WebsiteProvider, WebsiteSelector } from "@/components/WebsiteContext";
+import { useWebsite, WebsiteGate, WebsiteSelector } from "@/components/WebsiteContext";
 
 const suggestions = [
   "Audit my website",
@@ -123,9 +123,5 @@ function ChatContent() {
 }
 
 export default function ChatPage() {
-  return (
-    <WebsiteProvider>
-      <ChatContent />
-    </WebsiteProvider>
-  );
+  return <ChatContent />;
 }

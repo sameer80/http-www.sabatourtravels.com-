@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { OnboardingCard, useWebsite, WebsiteProvider, WebsiteSelector } from "@/components/WebsiteContext";
+import { OnboardingCard, useWebsite, WebsiteSelector } from "@/components/WebsiteContext";
 
 function RankingsContent() {
   const { website } = useWebsite();
@@ -62,9 +62,5 @@ function RankingsContent() {
 }
 
 export default function RankingsPage() {
-  return (
-    <WebsiteProvider>
-      <RankingsContent />
-    </WebsiteProvider>
-  );
+  return <RankingsContent />;
 }

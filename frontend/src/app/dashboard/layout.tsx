@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { WebsiteProvider } from "@/components/WebsiteContext";
 
 const nav = [
   { href: "/dashboard", label: "Dashboard" },
@@ -26,27 +27,29 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
 
   return (
-    <div className="min-h-screen lg:grid lg:grid-cols-[260px_1fr]">
-      <aside className="flex max-h-screen flex-col border-b border-slate-800 bg-slate-900 p-5 lg:border-b-0 lg:border-r">
-        <div className="mb-4 shrink-0">
-          <p className="text-xs uppercase tracking-widest text-brand-500">Saba Tours & Travels</p>
-          <h1 className="text-xl font-bold">AI SEO Manager Bot</h1>
-        </div>
-        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
-          {nav.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`block rounded-lg px-3 py-2 text-sm ${
-                pathname === item.href ? "bg-brand-600 text-white" : "text-slate-300 hover:bg-slate-800"
-              }`}
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-      </aside>
-      <main className="min-h-screen overflow-y-auto p-6">{children}</main>
-    </div>
+    <WebsiteProvider>
+      <div className="min-h-screen lg:grid lg:grid-cols-[260px_1fr]">
+        <aside className="flex max-h-screen flex-col border-b border-slate-800 bg-slate-900 p-5 lg:border-b-0 lg:border-r">
+          <div className="mb-4 shrink-0">
+            <p className="text-xs uppercase tracking-widest text-brand-500">Saba Tours & Travels</p>
+            <h1 className="text-xl font-bold">AI SEO Manager Bot</h1>
+          </div>
+          <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
+            {nav.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`block rounded-lg px-3 py-2 text-sm ${
+                  pathname === item.href ? "bg-brand-600 text-white" : "text-slate-300 hover:bg-slate-800"
+                }`}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+        </aside>
+        <main className="min-h-screen overflow-y-auto p-6">{children}</main>
+      </div>
+    </WebsiteProvider>
   );
 }

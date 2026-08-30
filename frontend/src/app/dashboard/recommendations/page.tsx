@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { OnboardingCard, useWebsite, WebsiteProvider, WebsiteSelector } from "@/components/WebsiteContext";
+import { OnboardingCard, useWebsite, WebsiteSelector } from "@/components/WebsiteContext";
 
 function RecommendationsContent() {
   const { website } = useWebsite();
@@ -49,9 +49,5 @@ function RecommendationsContent() {
 }
 
 export default function RecommendationsPage() {
-  return (
-    <WebsiteProvider>
-      <RecommendationsContent />
-    </WebsiteProvider>
-  );
+  return <RecommendationsContent />;
 }

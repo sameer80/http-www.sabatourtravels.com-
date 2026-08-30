@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { fixGuide } from "@/lib/seoFixes";
-import { OnboardingCard, useWebsite, WebsiteProvider, WebsiteSelector } from "@/components/WebsiteContext";
+import { OnboardingCard, useWebsite, WebsiteSelector } from "@/components/WebsiteContext";
 
 function OnPageContent() {
   const { website } = useWebsite();
@@ -74,9 +74,5 @@ function OnPageContent() {
 }
 
 export default function OnPagePage() {
-  return (
-    <WebsiteProvider>
-      <OnPageContent />
-    </WebsiteProvider>
-  );
+  return <OnPageContent />;
 }

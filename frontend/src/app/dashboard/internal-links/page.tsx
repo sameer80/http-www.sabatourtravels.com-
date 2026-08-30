@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { OnboardingCard, useWebsite, WebsiteProvider, WebsiteSelector } from "@/components/WebsiteContext";
+import { OnboardingCard, useWebsite, WebsiteSelector } from "@/components/WebsiteContext";
 
 function InternalLinksContent() {
   const { website } = useWebsite();
@@ -44,5 +44,5 @@ function InternalLinksContent() {
 }
 
 export default function InternalLinksPage() {
-  return <WebsiteProvider><InternalLinksContent /></WebsiteProvider>;
+  return <InternalLinksContent />;
 }

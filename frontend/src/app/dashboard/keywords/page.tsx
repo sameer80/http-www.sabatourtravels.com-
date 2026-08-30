@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { OnboardingCard, useWebsite, WebsiteProvider, WebsiteSelector } from "@/components/WebsiteContext";
+import { OnboardingCard, useWebsite, WebsiteSelector } from "@/components/WebsiteContext";
 
 function KeywordsContent() {
   const { website } = useWebsite();
@@ -60,5 +60,5 @@ function KeywordsContent() {
 }
 
 export default function KeywordsPage() {
-  return <WebsiteProvider><KeywordsContent /></WebsiteProvider>;
+  return <KeywordsContent />;
 }

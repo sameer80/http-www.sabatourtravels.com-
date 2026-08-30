@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 
@@ -8,11 +8,19 @@ type Website = { id: number; name: string; domain: string; base_url: string };
 
 const WebsiteContext = createContext<{
   website: Website | null;
+  websiteId: number | null;
   websites: Website[];
   loading: boolean;
   setWebsiteId: (id: number) => void;
   refreshWebsites: () => Promise<void>;
-}>({ website: null, websites: [], loading: true, setWebsiteId: () => {}, refreshWebsites: async () => {} });
+}>({
+  website: null,
+  websiteId: null,
+  websites: [],
+  loading: true,
+  setWebsiteId: () => {},
+  refreshWebsites: async () => {},
+});
 
 export function useWebsite() {
   return useContext(WebsiteContext);
@@ -28,20 +36,22 @@ export function WebsiteProvider({ children }: { children: React.ReactNode }) {
   });
   const [loading, setLoading] = useState(true);
 
-  function setWebsiteId(id: number) {
+  const setWebsiteId = useCallback((id: number) => {
     setWebsiteIdState(id);
     sessionStorage.setItem("websiteId", String(id));
-  }
+  }, []);
 
-  async function refreshWebsites() {
+  const refreshWebsites = useCallback(async () => {
     const data = await api.websites();
     setWebsites(data);
     setWebsiteIdState((current) => {
       const next = current && data.some((w) => w.id === current) ? current : data[0]?.id ?? null;
+      if (next === current) return current;
       if (next) sessionStorage.setItem("websiteId", String(next));
+      else sessionStorage.removeItem("websiteId");
       return next;
     });
-  }
+  }, []);
 
   useEffect(() => {
     if (!localStorage.getItem("token")) {
@@ -50,17 +60,23 @@ export function WebsiteProvider({ children }: { children: React.ReactNode }) {
     }
     setLoading(true);
     refreshWebsites()
-      .catch(() => router.push("/"))
+      .catch(() => {
+        // Keep the user on the dashboard if the API is temporarily unreachable.
+      })
       .finally(() => setLoading(false));
-  }, [router]);
+  }, [router, refreshWebsites]);
 
-  const website = websites.find((w) => w.id === websiteId) || null;
-
-  return (
-    <WebsiteContext.Provider value={{ website, websites, loading, setWebsiteId, refreshWebsites }}>
-      {children}
-    </WebsiteContext.Provider>
+  const website = useMemo(
+    () => websites.find((w) => w.id === websiteId) || null,
+    [websites, websiteId]
   );
+
+  const value = useMemo(
+    () => ({ website, websiteId, websites, loading, setWebsiteId, refreshWebsites }),
+    [website, websiteId, websites, loading, setWebsiteId, refreshWebsites]
+  );
+
+  return <WebsiteContext.Provider value={value}>{children}</WebsiteContext.Provider>;
 }
 
 export function WebsiteGate({ children }: { children: React.ReactNode }) {
@@ -79,7 +95,9 @@ export function WebsiteSelector() {
       onChange={(e) => setWebsiteId(Number(e.target.value))}
     >
       {websites.map((w) => (
-        <option key={w.id} value={w.id}>{w.name} ({w.domain})</option>
+        <option key={w.id} value={w.id}>
+          {w.name} ({w.domain})
+        </option>
       ))}
     </select>
   );
@@ -112,9 +130,9 @@ export function OnboardingCard() {
         with priority keywords and demo ranking data.
       </p>
       <ul className="space-y-2 text-sm text-slate-300">
-        <li><strong>onewaydrop.cab</strong> — One-way cab specialist</li>
-        <li><strong>sabacabs.com</strong> — Cab + airport + outstation</li>
-        <li><strong>punetomumbaicabservice.com</strong> — Pune–Mumbai specialist</li>
+        <li><strong>onewaydrop.cab</strong> - One-way cab specialist</li>
+        <li><strong>sabacabs.com</strong> - Cab + airport + outstation</li>
+        <li><strong>punetomumbaicabservice.com</strong> - Pune-Mumbai specialist</li>
       </ul>
       {error && <p className="text-sm text-red-400">{error}</p>}
       <button className="btn w-full" disabled={loading}>

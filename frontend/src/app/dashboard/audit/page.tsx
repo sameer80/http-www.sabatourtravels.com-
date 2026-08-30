@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { fixGuide } from "@/lib/seoFixes";
-import { OnboardingCard, useWebsite, WebsiteProvider, WebsiteSelector } from "@/components/WebsiteContext";
+import { OnboardingCard, useWebsite, WebsiteSelector } from "@/components/WebsiteContext";
 
 const severityColor: Record<string, string> = {
   critical: "bg-red-600",
@@ -205,9 +205,5 @@ function AuditContent() {
 }
 
 export default function AuditPage() {
-  return (
-    <WebsiteProvider>
-      <AuditContent />
-    </WebsiteProvider>
-  );
+  return <AuditContent />;
 }

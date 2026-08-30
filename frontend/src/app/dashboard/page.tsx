@@ -2,22 +2,30 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { OnboardingCard, useWebsite, WebsiteProvider, WebsiteSelector } from "@/components/WebsiteContext";
+import { OnboardingCard, useWebsite, WebsiteSelector } from "@/components/WebsiteContext";
 
-function OverviewContent() {
-  const { website } = useWebsite();
+export default function DashboardPage() {
+  const { website, websiteId, loading } = useWebsite();
   const [data, setData] = useState<any>(null);
   const [portfolio, setPortfolio] = useState<any>(null);
   const [crawling, setCrawling] = useState(false);
+  const [dataLoading, setDataLoading] = useState(false);
 
   useEffect(() => {
     api.portfolioOverview().then(setPortfolio).catch(() => {});
   }, []);
 
   useEffect(() => {
-    if (!website) return;
-    api.dashboard(website.id).then(setData);
-  }, [website]);
+    if (!websiteId) {
+      setData(null);
+      return;
+    }
+    setDataLoading(true);
+    api.dashboard(websiteId)
+      .then(setData)
+      .catch(() => setData(null))
+      .finally(() => setDataLoading(false));
+  }, [websiteId]);
 
   async function runCrawl() {
     if (!website) return;
@@ -30,15 +38,17 @@ function OverviewContent() {
     }, 4000);
   }
 
+  if (loading) return <p className="text-sm text-slate-400">Loading project...</p>;
   if (!website) return <OnboardingCard />;
-  if (!data) return <p>Loading dashboard...</p>;
+  if (!data && dataLoading) return <p className="text-sm text-slate-400">Loading dashboard...</p>;
+  if (!data) return <p className="text-sm text-slate-400">Could not load dashboard data.</p>;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold">SEO Dashboard</h2>
-          <p className="text-slate-400">{data.website.domain} — {data.website.positioning || "Saba Tours portfolio"}</p>
+          <p className="text-slate-400">{data.website.domain} - {data.website.positioning || "Saba Tours portfolio"}</p>
         </div>
         <div className="flex gap-2">
           <WebsiteSelector />
@@ -50,7 +60,7 @@ function OverviewContent() {
 
       {portfolio?.site_summaries?.length ? (
         <div className="card">
-          <h3 className="mb-3 font-semibold">Portfolio — Saba Tours & Travels</h3>
+          <h3 className="mb-3 font-semibold">Portfolio - Saba Tours & Travels</h3>
           <div className="grid gap-3 md:grid-cols-3">
             {portfolio.site_summaries.map((site: any) => (
               <div key={site.website_id} className="rounded-lg bg-slate-800/80 p-3">
@@ -73,7 +83,7 @@ function OverviewContent() {
           ["Top 3 keywords", data.keywords_top_3],
           ["Top 10 keywords", data.keywords_top_10],
           ["Top 20 keywords", data.keywords_top_20],
-          ["High opportunity (11–30)", data.keywords_high_opportunity],
+          ["High opportunity (11-30)", data.keywords_high_opportunity],
         ].map(([label, value]) => (
           <div key={label as string} className="card">
             <p className="text-sm text-slate-400">{label}</p>
@@ -127,13 +137,5 @@ function OverviewContent() {
         </div>
       </div>
     </div>
-  );
-}
-
-export default function DashboardPage() {
-  return (
-    <WebsiteProvider>
-      <OverviewContent />
-    </WebsiteProvider>
   );
 }

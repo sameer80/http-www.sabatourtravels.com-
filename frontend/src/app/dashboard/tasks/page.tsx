@@ -1,26 +1,43 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { OnboardingCard, useWebsite, WebsiteProvider, WebsiteSelector } from "@/components/WebsiteContext";
+import { OnboardingCard, useWebsite, WebsiteSelector } from "@/components/WebsiteContext";
 
-function TasksContent() {
-  const { website } = useWebsite();
+export default function TasksPage() {
+  const { website, websiteId, loading } = useWebsite();
   const [tasks, setTasks] = useState<any[]>([]);
+  const [error, setError] = useState("");
+  const [tasksLoading, setTasksLoading] = useState(false);
 
-  async function refresh() {
-    if (!website) return;
-    setTasks(await api.tasks(website.id));
-  }
+  const refresh = useCallback(async () => {
+    if (!websiteId) {
+      setTasks([]);
+      return;
+    }
+    setTasksLoading(true);
+    setError("");
+    try {
+      setTasks(await api.tasks(websiteId));
+    } catch (err) {
+      setTasks([]);
+      setError(err instanceof Error ? err.message : "Could not load tasks");
+    } finally {
+      setTasksLoading(false);
+    }
+  }, [websiteId]);
 
-  useEffect(() => { refresh(); }, [website]);
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
 
   async function markDone(taskId: number) {
-    if (!website) return;
-    await api.updateTask(website.id, taskId, { status: "completed" });
+    if (!websiteId) return;
+    await api.updateTask(websiteId, taskId, { status: "completed" });
     refresh();
   }
 
+  if (loading) return <p className="text-sm text-slate-400">Loading project...</p>;
   if (!website) return <OnboardingCard />;
 
   return (
@@ -29,6 +46,7 @@ function TasksContent() {
         <h2 className="text-2xl font-bold">SEO Task Board</h2>
         <WebsiteSelector />
       </div>
+      {error && <p className="text-sm text-red-400">{error}</p>}
       <div className="card overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead className="text-slate-400">
@@ -42,18 +60,19 @@ function TasksContent() {
                 <td className="py-2">{t.page_path || "-"}</td>
                 <td className="py-2 text-slate-400">{t.reason}</td>
                 <td className="py-2">{t.owner}</td>
-                <td className="py-2 capitalize">{t.status.replace("_", " ")}</td>
+                <td className="py-2 capitalize">{(t.status || "pending").replace("_", " ")}</td>
                 <td className="py-2">{t.status !== "completed" && <button className="btn" onClick={() => markDone(t.id)}>Done</button>}</td>
               </tr>
             ))}
           </tbody>
         </table>
-        {!tasks.length && <p className="text-sm text-slate-400">No tasks yet. Use AI Chat to generate prioritized actions.</p>}
+        {tasksLoading && <p className="p-3 text-sm text-slate-400">Loading tasks...</p>}
+        {!tasksLoading && !tasks.length && (
+          <p className="p-3 text-sm text-slate-400">
+            No tasks yet. Use Technical SEO &gt; Create SEO tasks or AI Chat to generate prioritized actions.
+          </p>
+        )}
       </div>
     </div>
   );
-}
-
-export default function TasksPage() {
-  return <WebsiteProvider><TasksContent /></WebsiteProvider>;
 }

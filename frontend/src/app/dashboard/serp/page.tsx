@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { api } from "@/lib/api";
-import { OnboardingCard, useWebsite, WebsiteProvider, WebsiteSelector } from "@/components/WebsiteContext";
+import { OnboardingCard, useWebsite, WebsiteSelector } from "@/components/WebsiteContext";
 
 function SerpContent() {
   const { website } = useWebsite();
@@ -62,5 +62,5 @@ function SerpContent() {
 }
 
 export default function SerpPage() {
-  return <WebsiteProvider><SerpContent /></WebsiteProvider>;
+  return <SerpContent />;
 }

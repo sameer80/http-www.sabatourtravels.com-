@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { OnboardingCard, useWebsite, WebsiteProvider, WebsiteSelector } from "@/components/WebsiteContext";
+import { OnboardingCard, useWebsite, WebsiteSelector } from "@/components/WebsiteContext";
 
 function ReportsContent() {
   const { website } = useWebsite();
@@ -61,9 +61,5 @@ function ReportsContent() {
 }
 
 export default function ReportsPage() {
-  return (
-    <WebsiteProvider>
-      <ReportsContent />
-    </WebsiteProvider>
-  );
+  return <ReportsContent />;
 }
