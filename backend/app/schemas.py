@@ -195,9 +195,30 @@ class BacklinkSummary(BaseModel):
     lost_backlinks: int
     report_url: str | None
     backlinks: list[BacklinkOut]
-    gaps: list[dict]
-    gap_count: int
-    note: str
+    gaps: list[dict] = []
+    gap_count: int = 0
+    note: str | None = None
+
+
+class CrossLinkPlanItem(BaseModel):
+    source_domain: str
+    source_name: str
+    source_base_url: str
+    target_domain: str
+    target_name: str
+    target_url: str
+    anchor_text: str
+    html_snippet: str
+    post_to: str
+    notes: str
+
+
+class CrossLinkPlanResponse(BaseModel):
+    organization: str
+    total_links: int
+    plan: list[CrossLinkPlanItem]
+    selenium_script: str
+    config_example: str
 
 
 class OpportunityOut(BaseModel):

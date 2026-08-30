@@ -6,10 +6,11 @@ from app.api.auth import get_current_user
 from app.auth import log_action
 from app.database import get_db
 from app.models import CrawlIssue, CrawlRun, Keyword, Page, RankHistory, SeoTask, TaskStatus, User, Website
-from app.schemas import PortfolioOverview, WebsiteOut
+from app.schemas import PortfolioOverview, WebsiteOut, CrossLinkPlanResponse, CrossLinkPlanItem
 from app.services.opportunity import position_priority_zone
 from app.services.portfolio import bootstrap_saba_tours_portfolio
 from app.services.crawl_service import refresh_opportunities
+from app.services.cross_links import build_cross_link_plan
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 
@@ -136,4 +137,18 @@ async def portfolio_overview(
         websites=[WebsiteOut.model_validate(w) for w in websites],
         totals=totals,
         site_summaries=site_summaries,
+    )
+
+
+@router.get("/cross-links/plan", response_model=CrossLinkPlanResponse)
+async def cross_links_plan(
+    current_user: User = Depends(get_current_user),
+):
+    plan = build_cross_link_plan()
+    return CrossLinkPlanResponse(
+        organization="Saba Tours & Travels",
+        total_links=len(plan),
+        plan=[CrossLinkPlanItem.model_validate(item) for item in plan],
+        selenium_script="scripts/post-portfolio-links-selenium.py",
+        config_example="scripts/link-post-config.example.json",
     )

@@ -69,6 +69,67 @@ class SemrushClient:
             )
         return rows
 
+    async def fetch_backlinks(self, domain: str, limit: int = 100) -> list[dict[str, Any]]:
+        """Fetch inbound backlinks for a domain from SEMrush (requires Backlinks API units)."""
+        attempts = [
+            {
+                "type": "backlinks",
+                "target": domain,
+                "target_type": "root_domain",
+                "display_limit": str(limit),
+                "export_columns": "source_url,target_url,anchor,external_num",
+            },
+            {
+                "type": "backlinks",
+                "domain": domain,
+                "display_limit": str(limit),
+                "export_columns": "source_url,target_url,anchor,external_num",
+            },
+        ]
+        last_error: Exception | None = None
+        for params in attempts:
+            try:
+                raw = await self._request(params)
+                return self._parse_backlink_export(raw, domain)
+            except Exception as exc:
+                last_error = exc
+                continue
+        if last_error:
+            raise RuntimeError(f"SEMrush backlinks API failed for {domain}: {last_error}") from last_error
+        return []
+
+    @staticmethod
+    def _parse_backlink_export(raw: str, domain: str) -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        lines = [line for line in raw.strip().splitlines() if line.strip()]
+        if not lines:
+            return rows
+        header = lines[0].lower()
+        if "source_url" in header or "source url" in header:
+            lines = lines[1:]
+        for line in lines:
+            parts = line.split(";")
+            if len(parts) < 2:
+                continue
+            source_url = parts[0].strip()
+            target_url = parts[1].strip() if len(parts) > 1 else f"https://{domain}/"
+            anchor = parts[2].strip() if len(parts) > 2 else domain
+            if not source_url.startswith("http"):
+                continue
+            from urllib.parse import urlparse
+
+            source_domain = urlparse(source_url).netloc.replace("www.", "")
+            rows.append(
+                {
+                    "source_url": source_url,
+                    "source_domain": source_domain,
+                    "target_url": target_url,
+                    "anchor_text": anchor or domain,
+                    "is_dofollow": True,
+                }
+            )
+        return rows
+
 
 async def sync_website_rankings(
     db: AsyncSession,
@@ -160,3 +221,50 @@ async def sync_website_rankings(
     await db.commit()
     await db.refresh(log)
     return log
+
+
+async def sync_website_backlinks(
+    db: AsyncSession,
+    website: Website,
+    *,
+    client: SemrushClient | None = None,
+    limit: int = 100,
+) -> dict:
+    """Pull backlinks from SEMrush and store them for the website."""
+    from app.services.backlinks import pull_backlinks
+
+    semrush = client or SemrushClient()
+    if not semrush.configured:
+        return {
+            "provider": "semrush",
+            "synced": 0,
+            "message": "SEMRUSH_API_KEY not set - add it to backend .env and restart.",
+            "error": "missing_api_key",
+        }
+
+    try:
+        rows = await semrush.fetch_backlinks(website.domain, limit=limit)
+    except Exception as exc:
+        logger.exception("SEMrush backlink pull failed for %s", website.domain)
+        return {
+            "provider": "semrush",
+            "synced": 0,
+            "message": str(exc)[:500],
+            "error": "semrush_api_failed",
+        }
+
+    if not rows:
+        return {
+            "provider": "semrush",
+            "synced": 0,
+            "message": f"No backlinks returned from SEMrush for {website.domain}. Check API units/subscription.",
+            "error": "empty_result",
+        }
+
+    result = await pull_backlinks(db, website, imported=rows)
+    result["provider"] = "semrush"
+    result["message"] = (
+        f"SEMrush: imported {result['synced']} new backlink(s) for {website.domain}. "
+        + result.get("message", "")
+    )
+    return result

@@ -101,6 +101,12 @@ export const api = {
   backlinkGap: (id: number) => request<any>(`/api/websites/${id}/backlinks/gap`),
   pullBacklinks: (id: number, data: any) =>
     request(`/api/websites/${id}/backlinks/pull`, { method: "POST", body: JSON.stringify(data) }),
+  pullSemrushBacklinks: (id: number) =>
+    request<{ message: string; synced: number; total_backlinks: number }>(
+      `/api/websites/${id}/backlinks/pull-semrush`,
+      { method: "POST", body: JSON.stringify({}) }
+    ),
+  crossLinkPlan: () => request<any>("/api/portfolio/cross-links/plan"),
   searchLinkProspects: (id: number, data: any) =>
     request(`/api/websites/${id}/link-prospects/search`, { method: "POST", body: JSON.stringify(data) }),
   linkProspects: (id: number, minDa = 0) =>

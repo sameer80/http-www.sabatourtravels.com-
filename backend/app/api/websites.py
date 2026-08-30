@@ -60,7 +60,7 @@ from app.services.backlinks import clear_and_pull, pull_backlinks, DEFAULT_SEOTO
 from app.services.crawl_service import refresh_opportunities, run_website_crawl
 from app.services.opportunity import position_priority_zone, rank_change_label, zone_label
 from app.services.reports import generate_daily_report
-from app.services.semrush import sync_website_rankings
+from app.services.semrush import sync_website_rankings, sync_website_backlinks
 from app.services.serp import compare_page_with_serp, fetch_serp_competitors
 from app.services.link_outreach import build_submission_plan, search_google_prospects
 from app.models import Competitor, Backlink, LinkProspect, OutreachStatus
@@ -647,6 +647,41 @@ async def pull_backlink_report(
         details={"synced": result["synced"], "report_url": result["report_url"]},
     )
     return BacklinkPullResponse(**result)
+
+
+@router.post("/{website_id}/backlinks/pull-semrush", response_model=BacklinkPullResponse)
+async def pull_semrush_backlinks(
+    website_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    website = await _get_owned_website(db, website_id, current_user)
+    result = await sync_website_backlinks(db, website)
+    if result.get("error") == "missing_api_key":
+        raise HTTPException(status_code=400, detail=result["message"])
+    if result.get("error") and result.get("synced", 0) == 0 and "report_url" not in result:
+        raise HTTPException(status_code=502, detail=result["message"])
+    await log_action(
+        db,
+        "backlinks_semrush_pull",
+        website_id=website.id,
+        user_id=current_user.id,
+        details={"synced": result.get("synced", 0), "provider": "semrush"},
+    )
+    if "report_url" in result:
+        return BacklinkPullResponse(**result)
+    return BacklinkPullResponse(
+        report_url=website.seotooladda_report_url or DEFAULT_SEOTOOLADDA_REPORT,
+        report_id=None,
+        provider="semrush",
+        synced=result.get("synced", 0),
+        new_backlinks=result.get("new_backlinks", result.get("synced", 0)),
+        total_backlinks=result.get("total_backlinks", 0),
+        referring_domains=result.get("referring_domains", 0),
+        new_links_flagged=result.get("new_links_flagged", 0),
+        message=result.get("message", "SEMrush pull completed"),
+        seotooladda_access="Use SEMRUSH_API_KEY in backend environment.",
+    )
 
 
 @router.post("/{website_id}/link-prospects/search", response_model=LinkProspectSearchOut)

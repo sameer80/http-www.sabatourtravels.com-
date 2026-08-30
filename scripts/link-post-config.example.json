@@ -1,0 +1,30 @@
+{
+  "dry_run": true,
+  "headless": false,
+  "api_url": "http://localhost:8000",
+  "login_email": "demo@example.com",
+  "login_password": "demo1234",
+  "sites": {
+    "sabacabs.com": {
+      "wp_login_url": "https://sabacabs.com/wp-login.php",
+      "username_env": "WP_SABACABS_USER",
+      "password_env": "WP_SABACABS_PASS",
+      "partners_page_slug": "our-travel-websites",
+      "partners_page_title": "Our Travel Websites"
+    },
+    "onewaydrop.cab": {
+      "wp_login_url": "https://onewaydrop.cab/wp-login.php",
+      "username_env": "WP_ONEWAYDROP_USER",
+      "password_env": "WP_ONEWAYDROP_PASS",
+      "partners_page_slug": "our-travel-websites",
+      "partners_page_title": "Our Travel Websites"
+    },
+    "punetomumbaicabservice.com": {
+      "wp_login_url": "https://punetomumbaicabservice.com/wp-login.php",
+      "username_env": "WP_PMCAB_USER",
+      "password_env": "WP_PMCAB_PASS",
+      "partners_page_slug": "our-travel-websites",
+      "partners_page_title": "Our Travel Websites"
+    }
+  }
+}
