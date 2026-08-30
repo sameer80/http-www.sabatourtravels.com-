@@ -31,7 +31,10 @@ function Initialize-DemoPortfolio {
 
     $email = "demo@example.com"
     $password = "demo1234"
-    $loginBody = "username=$([uri]::EscapeDataString($email))&password=$([uri]::EscapeDataString($password))"
+    $loginBody = @{
+        username = $email
+        password = $password
+    }
 
     try {
         $token = (Invoke-RestMethod -Uri "http://localhost:8000/api/auth/login" -Method Post -ContentType "application/x-www-form-urlencoded" -Body $loginBody).access_token
