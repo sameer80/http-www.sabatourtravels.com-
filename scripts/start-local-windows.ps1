@@ -25,7 +25,7 @@ function Wait-ForBackend {
 
 function Initialize-DemoPortfolio {
     if (-not (Wait-ForBackend)) {
-        Write-Host "Backend not ready — open http://localhost:3000 and login manually." -ForegroundColor Yellow
+        Write-Host "Backend not ready - open http://localhost:3000 and login manually." -ForegroundColor Yellow
         return
     }
 
