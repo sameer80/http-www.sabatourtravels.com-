@@ -1,5 +1,24 @@
-node_modules/
-npm-debug.log*
-.DS_Store
+# Python
+__pycache__/
+*.py[cod]
+*.db
 .env
 .env.local
+scripts/link-post-config.json
+.venv/
+
+# Node
+node_modules/
+.next/
+out/
+npm-debug.log*
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+
+# Docker
+postgres_data/

@@ -1,51 +1,79 @@
-# Saba Tour & Travels
+# AI SEO Manager Bot — Saba Tours & Travels
 
-A small travel-agency website for **sabatourtravels.com**, built with a static
-frontend and an Express booking-inquiry API.
+AI-powered SEO intelligence platform for **onewaydrop.cab**, **sabacabs.com**, and **punetomumbaicabservice.com**.
 
-## Tech stack
+Based on the SRS: *AI SEO Manager Bot — Saba Tours & Travels (Aug 2026)*.
 
-- **Backend:** Node.js + [Express](https://expressjs.com/) (`server.js`)
-- **Frontend:** static HTML/CSS/JS served from `public/`
-- **Tests:** Node's built-in test runner (`node --test`)
+## Stack
 
-## Getting started
+- **Frontend:** Next.js 14 + Tailwind CSS
+- **Backend:** Python FastAPI
+- **Database:** PostgreSQL + pgvector (SQLite for local dev)
+- **Queue:** Redis + Celery
+- **Integrations:** SEMrush API, Google Search Console (planned), PageSpeed Insights (planned)
 
+## Quick start
+
+### Cloud Agent (automatic)
+Services start via `.cursor/environment.json`. Open **Ports → 3000** in Cursor, or:
+
+- Dashboard: http://localhost:3000/dashboard
+- Login: `demo@example.com` / `demo1234`
+- Click **Setup all 3 websites** on first login
+
+Manual restart: `bash scripts/start-services.sh`
+
+### Windows PC (local)
+Double-click: `scripts\start-local-windows.bat`
+
+### Docker
 ```bash
-npm install        # install dependencies
-npm run dev        # start with auto-reload at http://localhost:3000
-# or
-npm start          # start without watch mode
+docker compose up --build
 ```
 
-Then open http://localhost:3000.
+## SRS websites
 
-## API
+| Domain | Positioning |
+|--------|-------------|
+| onewaydrop.cab | One-way cab specialist |
+| sabacabs.com | Cab + airport + outstation |
+| punetomumbaicabservice.com | Pune–Mumbai specialist |
 
-| Method | Route              | Description                                  |
-| ------ | ------------------ | -------------------------------------------- |
-| GET    | `/api/health`      | Health check.                                |
-| GET    | `/api/packages`    | List featured travel packages.               |
-| POST   | `/api/inquiries`   | Submit a booking inquiry (`name`, `email`, `destination` required). |
-| GET    | `/api/inquiries`   | List submitted inquiries (in-memory).        |
+## MVP features
 
-Example:
+- Three-website portfolio bootstrap with priority keywords
+- SRS keyword opportunity zones (Protect / Top 10 / High / Medium / Low)
+- Website crawler and technical SEO audit
+- Rank tracking with historical snapshots
+- AI recommendations with evidence, priority and owner
+- Daily SEO reports (SRS §27 workflow)
+- SEMrush API sync (when `SEMRUSH_API_KEY` is set)
+- SERP competitor analysis, internal links, backlink gap, link outreach
+- SEO task board and AI chat
 
-```bash
-curl -s http://localhost:3000/api/health
-curl -s -X POST http://localhost:3000/api/inquiries \
-  -H 'Content-Type: application/json' \
-  -d '{"name":"Jane","email":"jane@example.com","destination":"Kerala","travelers":2}'
-```
+## Environment variables
 
-## Tests
+| Variable | Description |
+|----------|-------------|
+| `SEMRUSH_API_KEY` | SEMrush API for ranking/backlink sync |
+| `OPENAI_API_KEY` | Optional — GPT-powered chat |
+| `OPENPAGERANK_API_KEY` | Link prospect authority scores |
+| `SECRET_KEY` | JWT signing key |
+| `DATABASE_URL` | PostgreSQL connection string |
+| `REDIS_URL` | Redis for Celery |
 
-```bash
-npm test
-```
+## API highlights
 
-## Cloud Agent environment
+- `POST /api/auth/register` — create account
+- `POST /api/auth/login` — get JWT token
+- `POST /api/websites` — add website
+- `POST /api/websites/{id}/crawl` — start crawl
+- `POST /api/websites/{id}/keywords` — track keyword
+- `GET /api/websites/{id}/dashboard` — overview metrics
+- `POST /api/websites/{id}/chat` — AI SEO manager
 
-Development environment configuration lives in
-[`.cursor/environment.json`](.cursor/environment.json): it runs `npm install`
-and starts the dev server (`npm run dev`) on port 3000.
+## Phases
+
+1. **Phase 1:** Crawler, technical audit, keywords, rank tracking, dashboard
+2. **Phase 2:** AI analysis, opportunity score, SERP/content gap, chatbot, tasks
+3. **Phase 3:** Automation, alerts, reports, CMS actions, learning loop
