@@ -3,6 +3,7 @@
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
+$CorsOrigins = "http://localhost:3000,http://localhost:3001,http://localhost:3002,http://127.0.0.1:3000,http://127.0.0.1:3001,http://127.0.0.1:3002"
 
 Write-Host "AI SEO Manager - automatic local start" -ForegroundColor Cyan
 
@@ -13,7 +14,8 @@ netsh winhttp reset proxy | Out-Null
 Set-Location $Root
 
 function Wait-ForBackend {
-    for ($i = 0; $i -lt 30; $i++) {
+    param([int]$MaxAttempts = 45)
+    for ($i = 0; $i -lt $MaxAttempts; $i++) {
         try {
             $r = Invoke-WebRequest -Uri "http://localhost:8000/api/health" -UseBasicParsing -TimeoutSec 2
             if ($r.StatusCode -eq 200) { return $true }
@@ -25,7 +27,9 @@ function Wait-ForBackend {
 
 function Initialize-DemoPortfolio {
     if (-not (Wait-ForBackend)) {
-        Write-Host "Backend not ready - open http://localhost:3000 and login manually." -ForegroundColor Yellow
+        Write-Host "Backend not ready on http://localhost:8000" -ForegroundColor Red
+        Write-Host "Check the Backend PowerShell window for Python/pip errors, then open:" -ForegroundColor Yellow
+        Write-Host "  http://localhost:3000  (or the port shown in the Frontend window, e.g. 3001)" -ForegroundColor Yellow
         return
     }
 
@@ -54,13 +58,18 @@ function Initialize-DemoPortfolio {
 
 if (Get-Command docker -ErrorAction SilentlyContinue) {
     Write-Host "Starting with Docker Compose..." -ForegroundColor Green
+    $env:CORS_ORIGINS = $CorsOrigins
     docker compose up -d --build
     Write-Host ""
+    Write-Host "Waiting for backend..." -ForegroundColor Cyan
+    if (-not (Wait-ForBackend)) {
+        Write-Host "Docker backend did not become ready. Run: docker compose logs backend" -ForegroundColor Red
+        exit 1
+    }
     Write-Host "Ready!" -ForegroundColor Green
     Write-Host "  Frontend: http://localhost:3000"
     Write-Host "  API:      http://localhost:8000/docs"
     Write-Host "  Login:    demo@example.com / demo1234"
-    Start-Sleep -Seconds 5
     Initialize-DemoPortfolio
     Start-Process "http://localhost:3000/dashboard"
     exit 0
@@ -68,18 +77,65 @@ if (Get-Command docker -ErrorAction SilentlyContinue) {
 
 Write-Host "Docker not found. Starting with Node + Python..." -ForegroundColor Yellow
 
-# Backend
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$Root\backend'; pip install -r requirements.txt; uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+$python = $null
+foreach ($cmd in @("python", "py", "python3")) {
+    if (Get-Command $cmd -ErrorAction SilentlyContinue) {
+        $python = $cmd
+        break
+    }
+}
+if (-not $python) {
+    Write-Host "Python not found. Install Python 3.11+ from https://www.python.org/downloads/" -ForegroundColor Red
+    Write-Host "During install, check 'Add Python to PATH'." -ForegroundColor Yellow
+    pause
+    exit 1
+}
 
-Start-Sleep -Seconds 3
+if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
+    Write-Host "Node.js not found. Install LTS from https://nodejs.org/" -ForegroundColor Red
+    pause
+    exit 1
+}
 
-# Frontend
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$Root\frontend'; npm install; npm run dev"
+# Backend (keep window open so you can see errors)
+$backendCmd = @"
+`$env:CORS_ORIGINS='$CorsOrigins'
+Set-Location '$Root\backend'
+Write-Host 'Installing backend dependencies...' -ForegroundColor Cyan
+& '$python' -m pip install -r requirements.txt
+Write-Host 'Starting backend on http://localhost:8000 ...' -ForegroundColor Green
+& '$python' -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+"@
+Start-Process powershell -ArgumentList "-NoExit", "-Command", $backendCmd
 
-Start-Sleep -Seconds 8
+Start-Sleep -Seconds 5
+
+# Frontend (Next.js may use 3001 if 3000 is busy - CORS allows both)
+$frontendCmd = @"
+Set-Location '$Root\frontend'
+Write-Host 'Installing frontend dependencies...' -ForegroundColor Cyan
+npm install
+Write-Host 'Starting frontend (default http://localhost:3000) ...' -ForegroundColor Green
+npm run dev
+"@
+Start-Process powershell -ArgumentList "-NoExit", "-Command", $frontendCmd
+
+Write-Host "Waiting for backend on http://localhost:8000 ..." -ForegroundColor Cyan
+if (-not (Wait-ForBackend)) {
+    Write-Host ""
+    Write-Host "Backend still not ready." -ForegroundColor Red
+    Write-Host "1. Look at the 'Backend' PowerShell window for errors." -ForegroundColor Yellow
+    Write-Host "2. When it shows 'Application startup complete', refresh the login page." -ForegroundColor Yellow
+    Write-Host "3. Open the URL shown in the Frontend window (3000 or 3001)." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "  Login: demo@example.com / demo1234" -ForegroundColor Gray
+    pause
+    exit 1
+}
+
 Write-Host "Opening browser..." -ForegroundColor Green
-
 Initialize-DemoPortfolio
 Start-Process "http://localhost:3000/dashboard"
-Write-Host "  Login:    demo@example.com / demo1234"
-Write-Host "  Dashboard: http://localhost:3000/dashboard"
+Write-Host "  Frontend: http://localhost:3000 (or 3001 if Next.js picked another port)" -ForegroundColor Green
+Write-Host "  API:      http://localhost:8000/docs" -ForegroundColor Green
+Write-Host "  Login:    demo@example.com / demo1234" -ForegroundColor Green

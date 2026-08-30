@@ -12,10 +12,15 @@ export default function LoginPage() {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [backendReady, setBackendReady] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (localStorage.getItem("token")) router.push("/dashboard");
   }, [router]);
+
+  useEffect(() => {
+    api.health().then(setBackendReady);
+  }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -42,6 +47,12 @@ export default function LoginPage() {
           <h1 className="text-2xl font-bold">AI SEO Manager</h1>
           <p className="text-sm text-slate-400">Evidence-based SEO intelligence and action management</p>
         </div>
+        {backendReady === false && (
+          <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200">
+            Backend is not running on port 8000. Run <strong>scripts/start-local-windows.bat</strong>, wait for the
+            Backend PowerShell window to finish, then refresh this page.
+          </p>
+        )}
         {mode === "register" && (
           <input className="input" placeholder="Full name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
         )}

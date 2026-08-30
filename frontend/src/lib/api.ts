@@ -41,13 +41,28 @@ export const api = {
     request("/api/auth/register", { method: "POST", body: JSON.stringify(data) }),
   login: async (email: string, password: string) => {
     const body = new URLSearchParams({ username: email, password });
-    const res = await fetch(`${API_URL}/api/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body,
-    });
-    if (!res.ok) throw new Error("Login failed");
+    let res: Response;
+    try {
+      res = await fetch(`${API_URL}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body,
+      });
+    } catch {
+      throw new Error(
+        `Cannot reach API at ${API_URL}. Start the backend on port 8000 (run scripts/start-local-windows.bat) and try again.`
+      );
+    }
+    if (!res.ok) throw new Error("Login failed - check email and password.");
     return res.json() as Promise<Token>;
+  },
+  health: async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/health`);
+      return res.ok;
+    } catch {
+      return false;
+    }
   },
   me: () => request<{ email: string; full_name: string }>("/api/auth/me"),
   websites: () => request<any[]>("/api/websites"),

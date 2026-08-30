@@ -12,7 +12,10 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openpagerank_api_key: str = ""
     semrush_api_key: str = ""
-    cors_origins: str = "http://localhost:3000"
+    cors_origins: str = (
+        "http://localhost:3000,http://localhost:3001,http://localhost:3002,"
+        "http://127.0.0.1:3000,http://127.0.0.1:3001,http://127.0.0.1:3002"
+    )
     max_crawl_pages: int = 40
     crawl_timeout_seconds: int = 15
     crawl_delay_seconds: float = 1.5
