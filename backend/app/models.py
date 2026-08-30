@@ -73,9 +73,13 @@ class Website(Base):
     country: Mapped[str] = mapped_column(String(100), default="IN")
     city: Mapped[str] = mapped_column(String(100), default="")
     language: Mapped[str] = mapped_column(String(20), default="en")
+    positioning: Mapped[str] = mapped_column(String(500), default="")
+    seo_focus: Mapped[str] = mapped_column(String(500), default="")
+    sitemap_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     owner: Mapped["User"] = relationship(back_populates="websites")
+    api_sync_logs: Mapped[list["ApiSyncLog"]] = relationship(back_populates="website", cascade="all, delete-orphan")
     pages: Mapped[list["Page"]] = relationship(back_populates="website", cascade="all, delete-orphan")
     crawl_runs: Mapped[list["CrawlRun"]] = relationship(back_populates="website", cascade="all, delete-orphan")
     keywords: Mapped[list["Keyword"]] = relationship(back_populates="website", cascade="all, delete-orphan")
@@ -180,6 +184,13 @@ class RankHistory(Base):
     keyword_id: Mapped[int] = mapped_column(ForeignKey("keywords.id"), index=True)
     page_id: Mapped[int | None] = mapped_column(ForeignKey("pages.id"), nullable=True)
     position: Mapped[float | None] = mapped_column(Float)
+    previous_position: Mapped[float | None] = mapped_column(Float, nullable=True)
+    position_change: Mapped[float | None] = mapped_column(Float, nullable=True)
+    search_volume: Mapped[int] = mapped_column(Integer, default=0)
+    keyword_difficulty: Mapped[float] = mapped_column(Float, default=0.0)
+    ranking_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    intent: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    priority: Mapped[str | None] = mapped_column(String(50), nullable=True)
     search_engine: Mapped[str] = mapped_column(String(50), default="google")
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
 
@@ -400,3 +411,19 @@ class AuditLog(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     website: Mapped["Website | None"] = relationship(back_populates="audit_logs")
+
+
+class ApiSyncLog(Base):
+    __tablename__ = "api_sync_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    website_id: Mapped[int | None] = mapped_column(ForeignKey("websites.id"), nullable=True, index=True)
+    provider: Mapped[str] = mapped_column(String(100))
+    sync_type: Mapped[str] = mapped_column(String(100))
+    status: Mapped[str] = mapped_column(String(50), default="pending")
+    records_synced: Mapped[int] = mapped_column(Integer, default=0)
+    message: Mapped[str | None] = mapped_column(Text)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    website: Mapped["Website | None"] = relationship(back_populates="api_sync_logs")

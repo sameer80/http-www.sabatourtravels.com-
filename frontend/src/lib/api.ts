@@ -87,4 +87,9 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(data),
     }),
+  bootstrapSabaTours: () => request<any[]>("/api/portfolio/bootstrap/saba-tours", { method: "POST" }),
+  portfolioOverview: () => request<any>("/api/portfolio/overview"),
+  dailyReport: (id: number) => request<any>(`/api/websites/${id}/reports/daily`),
+  recommendations: (id: number) => request<any[]>(`/api/websites/${id}/recommendations`),
+  syncSemrush: (id: number) => request<any>(`/api/websites/${id}/sync/semrush`, { method: "POST" }),
 };

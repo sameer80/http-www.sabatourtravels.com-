@@ -87,26 +87,39 @@ export function WebsiteSelector() {
 
 export function OnboardingCard() {
   const { refreshWebsites } = useWebsite();
-  const [name, setName] = useState("Saba Cabs");
-  const [domain, setDomain] = useState("sabacabs.com");
-  const [baseUrl, setBaseUrl] = useState("https://sabacabs.com");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  async function createWebsite(e: React.FormEvent) {
+  async function setupPortfolio(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    await api.createWebsite({ name, domain, base_url: baseUrl, country: "IN", city: "Pune", language: "en" });
-    await refreshWebsites();
-    setLoading(false);
+    setError("");
+    try {
+      await api.bootstrapSabaTours();
+      await refreshWebsites();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Setup failed");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
-    <form onSubmit={createWebsite} className="card mx-auto max-w-xl space-y-3">
-      <h2 className="text-lg font-semibold">Add your first website</h2>
-      <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Project name" />
-      <input className="input" value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="Domain" />
-      <input className="input" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="Base URL" />
-      <button className="btn" disabled={loading}>{loading ? "Saving..." : "Add website"}</button>
+    <form onSubmit={setupPortfolio} className="card mx-auto max-w-xl space-y-4">
+      <h2 className="text-lg font-semibold">Setup Saba Tours SEO Portfolio</h2>
+      <p className="text-sm text-slate-400">
+        Configure all three websites from the SRS: onewaydrop.cab, sabacabs.com and punetomumbaicabservice.com
+        with priority keywords and demo ranking data.
+      </p>
+      <ul className="space-y-2 text-sm text-slate-300">
+        <li><strong>onewaydrop.cab</strong> — One-way cab specialist</li>
+        <li><strong>sabacabs.com</strong> — Cab + airport + outstation</li>
+        <li><strong>punetomumbaicabservice.com</strong> — Pune–Mumbai specialist</li>
+      </ul>
+      {error && <p className="text-sm text-red-400">{error}</p>}
+      <button className="btn w-full" disabled={loading}>
+        {loading ? "Setting up..." : "Setup all 3 websites"}
+      </button>
     </form>
   );
 }

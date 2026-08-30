@@ -4,16 +4,22 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const nav = [
-  { href: "/dashboard", label: "Overview" },
-  { href: "/dashboard/audit", label: "Technical Audit" },
+  { href: "/dashboard", label: "Dashboard" },
+  { href: "/dashboard/websites", label: "Websites" },
   { href: "/dashboard/keywords", label: "Keywords" },
-  { href: "/dashboard/opportunities", label: "Opportunities" },
-  { href: "/dashboard/tasks", label: "Task Board" },
-  { href: "/dashboard/serp", label: "SERP Analysis" },
+  { href: "/dashboard/rankings", label: "Rankings" },
+  { href: "/dashboard/serp", label: "Competitors" },
+  { href: "/dashboard/backlinks", label: "Backlinks" },
+  { href: "/dashboard/audit", label: "Technical SEO" },
+  { href: "/dashboard/on-page", label: "On-Page SEO" },
+  { href: "/dashboard/opportunities", label: "Content" },
   { href: "/dashboard/internal-links", label: "Internal Links" },
-  { href: "/dashboard/backlinks", label: "Backlink Gap" },
+  { href: "/dashboard/tasks", label: "SEO Tasks" },
+  { href: "/dashboard/recommendations", label: "AI Recommendations" },
+  { href: "/dashboard/reports", label: "Reports" },
   { href: "/dashboard/link-outreach", label: "Link Outreach" },
   { href: "/dashboard/chat", label: "AI SEO Chat" },
+  { href: "/dashboard/settings", label: "Settings" },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -23,8 +29,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <div className="min-h-screen lg:grid lg:grid-cols-[260px_1fr]">
       <aside className="border-b border-slate-800 bg-slate-900 p-5 lg:border-b-0 lg:border-r">
         <div className="mb-8">
-          <p className="text-xs uppercase tracking-widest text-brand-500">AI SEO Manager</p>
-          <h1 className="text-xl font-bold">SEO Command Center</h1>
+          <p className="text-xs uppercase tracking-widest text-brand-500">Saba Tours & Travels</p>
+          <h1 className="text-xl font-bold">AI SEO Manager Bot</h1>
         </div>
         <nav className="space-y-1">
           {nav.map((item) => (

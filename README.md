@@ -1,14 +1,16 @@
-# AI SEO Manager
+# AI SEO Manager Bot — Saba Tours & Travels
 
-AI-powered SEO intelligence, ranking, competitor, backlink and action-management platform.
+AI-powered SEO intelligence platform for **onewaydrop.cab**, **sabacabs.com**, and **punetomumbaicabservice.com**.
+
+Based on the SRS: *AI SEO Manager Bot — Saba Tours & Travels (Aug 2026)*.
 
 ## Stack
 
 - **Frontend:** Next.js 14 + Tailwind CSS
 - **Backend:** Python FastAPI
-- **Database:** PostgreSQL + pgvector
+- **Database:** PostgreSQL + pgvector (SQLite for local dev)
 - **Queue:** Redis + Celery
-- **Crawler:** httpx + BeautifulSoup
+- **Integrations:** SEMrush API, Google Search Console (planned), PageSpeed Insights (planned)
 
 ## Quick start
 
@@ -17,6 +19,7 @@ Services start via `.cursor/environment.json`. Open **Ports → 3000** in Cursor
 
 - Dashboard: http://localhost:3000/dashboard
 - Login: `demo@example.com` / `demo1234`
+- Click **Setup all 3 websites** on first login
 
 Manual restart: `bash scripts/start-services.sh`
 
@@ -28,31 +31,33 @@ Double-click: `scripts\start-local-windows.bat`
 docker compose up --build
 ```
 
+## SRS websites
+
+| Domain | Positioning |
+|--------|-------------|
+| onewaydrop.cab | One-way cab specialist |
+| sabacabs.com | Cab + airport + outstation |
+| punetomumbaicabservice.com | Pune–Mumbai specialist |
+
 ## MVP features
 
-- Website onboarding and crawling
-- Technical SEO audit with severity levels
-- Keyword tracking and rank history
-- SEO opportunity scoring (0-100)
-- SERP competitor analysis
-- Internal link recommendations
-- Backlink gap framework
-- AI SEO chatbot with evidence-based responses
-- SEO task board
-- Scheduled crawl/opportunity refresh via Celery
-
-## Product rules
-
-- Never guarantees #1 Google ranking
-- Recommendations include evidence/signals
-- Automated changes require explicit approval
-- Historical data retained for learning loop
+- Three-website portfolio bootstrap with priority keywords
+- SRS keyword opportunity zones (Protect / Top 10 / High / Medium / Low)
+- Website crawler and technical SEO audit
+- Rank tracking with historical snapshots
+- AI recommendations with evidence, priority and owner
+- Daily SEO reports (SRS §27 workflow)
+- SEMrush API sync (when `SEMRUSH_API_KEY` is set)
+- SERP competitor analysis, internal links, backlink gap, link outreach
+- SEO task board and AI chat
 
 ## Environment variables
 
 | Variable | Description |
 |----------|-------------|
-| `OPENAI_API_KEY` | Optional — enables GPT-powered chat responses |
+| `SEMRUSH_API_KEY` | SEMrush API for ranking/backlink sync |
+| `OPENAI_API_KEY` | Optional — GPT-powered chat |
+| `OPENPAGERANK_API_KEY` | Link prospect authority scores |
 | `SECRET_KEY` | JWT signing key |
 | `DATABASE_URL` | PostgreSQL connection string |
 | `REDIS_URL` | Redis for Celery |

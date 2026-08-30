@@ -34,6 +34,9 @@ class WebsiteCreate(BaseModel):
     country: str = "IN"
     city: str = ""
     language: str = "en"
+    positioning: str = ""
+    seo_focus: str = ""
+    sitemap_url: str | None = None
 
 
 class WebsiteOut(BaseModel):
@@ -44,6 +47,9 @@ class WebsiteOut(BaseModel):
     country: str
     city: str
     language: str
+    positioning: str = ""
+    seo_focus: str = ""
+    sitemap_url: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -108,7 +114,12 @@ class KeywordOut(BaseModel):
     device: str
     target_page_id: int | None
     latest_position: float | None = None
-    position_change: str | None = None
+    previous_position: float | None = None
+    position_change: float | None = None
+    position_trend: str | None = None
+    priority_zone: str | None = None
+    search_volume: int | None = None
+    keyword_difficulty: float | None = None
 
     model_config = {"from_attributes": True}
 
@@ -212,15 +223,62 @@ class ChatResponse(BaseModel):
 
 class DashboardOverview(BaseModel):
     website: WebsiteOut
+    seo_score: float
     total_pages: int
     total_issues: int
     issues_by_severity: dict[str, int]
     total_keywords: int
+    keywords_top_3: int
     keywords_top_10: int
+    keywords_top_20: int
+    keywords_high_opportunity: int
+    keywords_top_10_legacy: int
     keywords_opportunity_zone: int
     pending_tasks: int
     top_opportunities: list[OpportunityOut]
     recent_alerts: list[dict[str, Any]]
+
+
+class PortfolioOverview(BaseModel):
+    organization: str
+    websites: list[WebsiteOut]
+    totals: dict[str, Any]
+    site_summaries: list[dict[str, Any]]
+
+
+class AiRecommendationOut(BaseModel):
+    id: int
+    title: str
+    opportunity_type: str
+    score: float
+    evidence: str | None
+    signals: dict | None
+    priority: str
+    suggested_owner: str
+    validation_method: str
+    status: str = "open"
+
+
+class DailyReportOut(BaseModel):
+    generated_at: str
+    website: dict[str, Any]
+    summary: dict[str, Any]
+    keyword_movements: list[dict[str, Any]]
+    top_recommendations: list[dict[str, Any]]
+    workflow_note: str
+
+
+class ApiSyncLogOut(BaseModel):
+    id: int
+    provider: str
+    sync_type: str
+    status: str
+    records_synced: int
+    message: str | None
+    started_at: datetime
+    completed_at: datetime | None
+
+    model_config = {"from_attributes": True}
 
 
 class SerpAnalysisRequest(BaseModel):

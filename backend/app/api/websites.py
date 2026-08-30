@@ -21,6 +21,8 @@ from app.models import (
     Website,
 )
 from app.schemas import (
+    AiRecommendationOut,
+    ApiSyncLogOut,
     ChatMessageCreate,
     ChatResponse,
     ChatMessageOut,
@@ -28,6 +30,7 @@ from app.schemas import (
     CompetitorOut,
     CrawlIssueOut,
     CrawlRunOut,
+    DailyReportOut,
     DashboardOverview,
     GscMetricCreate,
     InternalLinkRecommendation,
@@ -50,7 +53,9 @@ from app.schemas import (
 from app.services.ai_agent import AiSeoAgent
 from app.services.audit import recommend_internal_links
 from app.services.crawl_service import refresh_opportunities, run_website_crawl
-from app.services.opportunity import position_segment, rank_change_label
+from app.services.opportunity import position_priority_zone, rank_change_label, zone_label
+from app.services.reports import generate_daily_report
+from app.services.semrush import sync_website_rankings
 from app.services.serp import compare_page_with_serp, fetch_serp_competitors
 from app.services.link_outreach import build_submission_plan, search_google_prospects
 from app.models import Competitor, Backlink, LinkProspect, OutreachStatus
@@ -193,13 +198,19 @@ async def list_keywords(
             await db.execute(
                 select(RankHistory)
                 .where(RankHistory.keyword_id == keyword.id)
-                .order_by(RankHistory.recorded_at.desc())
+                .order_by(RankHistory.recorded_at.desc(), RankHistory.id.desc())
                 .limit(5)
             )
         ).scalars().all()
+        latest = history[0] if history else None
         item = KeywordOut.model_validate(keyword)
-        item.latest_position = history[0].position if history else None
-        item.position_change = rank_change_label(history)
+        item.latest_position = latest.position if latest else None
+        item.previous_position = latest.previous_position if latest else None
+        item.position_change = latest.position_change if latest else None
+        item.position_trend = rank_change_label(history)
+        item.priority_zone = zone_label(item.latest_position)
+        item.search_volume = latest.search_volume if latest else None
+        item.keyword_difficulty = latest.keyword_difficulty if latest else None
         output.append(item)
     return output
 
@@ -340,22 +351,36 @@ async def dashboard(
     )
     issues_by_severity = {row[0].value: row[1] for row in severity_rows.all()}
     keywords = (await db.execute(select(Keyword).where(Keyword.website_id == website_id))).scalars().all()
-    top_10 = 0
-    opportunity_zone = 0
+    top_3 = top_10 = top_20 = high_opportunity = opportunity_zone = 0
     for keyword in keywords:
         latest = (
             await db.execute(
                 select(RankHistory.position)
                 .where(RankHistory.keyword_id == keyword.id)
-                .order_by(RankHistory.recorded_at.desc())
+                .order_by(RankHistory.recorded_at.desc(), RankHistory.id.desc())
                 .limit(1)
             )
         ).scalar_one_or_none()
-        segment = position_segment(latest)
-        if segment in ("1-3", "4-10"):
+        if latest is None:
+            continue
+        if latest <= 3:
+            top_3 += 1
+        if latest <= 10:
             top_10 += 1
-        if segment == "11-20":
+        if latest <= 20:
+            top_20 += 1
+        zone = position_priority_zone(latest)
+        if zone == "high":
+            high_opportunity += 1
+        if 11 <= latest <= 20:
             opportunity_zone += 1
+
+    seo_score = 0.0
+    if keywords:
+        ranking_score = min(50, (top_10 / len(keywords)) * 50)
+        technical_score = max(0, 30 - min(30, issues_count or 0))
+        coverage_score = min(20, pages_count or 0)
+        seo_score = round(ranking_score + technical_score + coverage_score, 1)
     pending_tasks = await db.scalar(
         select(func.count()).select_from(SeoTask).where(
             SeoTask.website_id == website_id, SeoTask.status != TaskStatus.COMPLETED
@@ -376,11 +401,16 @@ async def dashboard(
     ).scalars().all()
     return DashboardOverview(
         website=WebsiteOut.model_validate(website),
+        seo_score=seo_score,
         total_pages=pages_count or 0,
         total_issues=issues_count or 0,
         issues_by_severity=issues_by_severity,
         total_keywords=len(keywords),
+        keywords_top_3=top_3,
         keywords_top_10=top_10,
+        keywords_top_20=top_20,
+        keywords_high_opportunity=high_opportunity,
+        keywords_top_10_legacy=top_10,
         keywords_opportunity_zone=opportunity_zone,
         pending_tasks=pending_tasks or 0,
         top_opportunities=[OpportunityOut.model_validate(o) for o in opportunities],
@@ -608,3 +638,67 @@ async def update_link_prospect(
         details={"prospect_id": prospect_id, "status": payload.outreach_status},
     )
     return prospect
+
+
+@router.get("/{website_id}/reports/daily", response_model=DailyReportOut)
+async def daily_report(
+    website_id: int, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    website = await _get_owned_website(db, website_id, current_user)
+    report = await generate_daily_report(db, website)
+    return DailyReportOut(**report)
+
+
+@router.get("/{website_id}/recommendations", response_model=list[AiRecommendationOut])
+async def ai_recommendations(
+    website_id: int, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    await _get_owned_website(db, website_id, current_user)
+    opportunities = (
+        await db.execute(
+            select(SeoOpportunity)
+            .where(SeoOpportunity.website_id == website_id)
+            .order_by(SeoOpportunity.score.desc())
+            .limit(25)
+        )
+    ).scalars().all()
+    output: list[AiRecommendationOut] = []
+    for opp in opportunities:
+        zone = (opp.signals or {}).get("priority_zone", "MEDIUM")
+        priority = "High" if opp.score >= 70 else "Medium" if opp.score >= 45 else "Low"
+        if "CRITICAL" in opp.title.upper() or opp.opportunity_type == "technical_seo":
+            priority = "Critical" if opp.score >= 60 else priority
+        owner = "Developer" if opp.opportunity_type == "technical_seo" else "SEO + Content"
+        output.append(
+            AiRecommendationOut(
+                id=opp.id,
+                title=opp.title,
+                opportunity_type=opp.opportunity_type,
+                score=opp.score,
+                evidence=opp.evidence,
+                signals=opp.signals,
+                priority=priority,
+                suggested_owner=owner,
+                validation_method="Re-crawl affected URLs and monitor ranking movement next cycle.",
+                status="open",
+            )
+        )
+    return output
+
+
+@router.post("/{website_id}/sync/semrush", response_model=ApiSyncLogOut)
+async def sync_semrush_rankings(
+    website_id: int, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    website = await _get_owned_website(db, website_id, current_user)
+    log = await sync_website_rankings(db, website)
+    if log.status == "completed":
+        await refresh_opportunities(db, website_id)
+    await log_action(
+        db,
+        "semrush_sync",
+        website_id=website.id,
+        user_id=current_user.id,
+        details={"status": log.status, "records": log.records_synced},
+    )
+    return log

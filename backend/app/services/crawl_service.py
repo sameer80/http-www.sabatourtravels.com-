@@ -132,16 +132,23 @@ async def refresh_opportunities(db: AsyncSession, website_id: int) -> list[SeoOp
     ).scalars().all()
 
     rank_map: dict[int, float | None] = {}
+    rank_meta: dict[int, dict] = {}
     for keyword in keywords:
         rh = (
             await db.execute(
                 select(RankHistory)
                 .where(RankHistory.keyword_id == keyword.id)
-                .order_by(RankHistory.recorded_at.desc())
+                .order_by(RankHistory.recorded_at.desc(), RankHistory.id.desc())
                 .limit(1)
             )
         ).scalar_one_or_none()
         rank_map[keyword.id] = rh.position if rh else None
+        if rh:
+            rank_meta[keyword.id] = {
+                "search_volume": rh.search_volume,
+                "keyword_difficulty": rh.keyword_difficulty,
+                "position_change": rh.position_change,
+            }
 
     gsc_rows = (await db.execute(select(GscMetric).where(GscMetric.website_id == website_id))).scalars().all()
     gsc_map = {row.query.lower(): row for row in gsc_rows}
@@ -150,7 +157,7 @@ async def refresh_opportunities(db: AsyncSession, website_id: int) -> list[SeoOp
         if issue.page_id:
             issues_by_page.setdefault(issue.page_id, []).append(issue)
 
-    opportunities = build_opportunities(keywords, rank_map, gsc_map, pages, issues_by_page)
+    opportunities = build_opportunities(keywords, rank_map, rank_meta, gsc_map, pages, issues_by_page)
     for opp in opportunities:
         db.add(opp)
     await db.commit()

@@ -1,4 +1,6 @@
-# AI SEO Manager — Cloud Agent Guide
+# AI SEO Manager Bot — Saba Tours & Travels
+
+Based on SRS: *AI SEO Manager Bot — Saba Tours (Aug 2026)*.
 
 ## Quick start (automatic)
 
@@ -7,12 +9,17 @@ Services auto-start via `.cursor/environment.json` terminals:
 | Service | URL |
 |---------|-----|
 | **Dashboard** | http://localhost:3000/dashboard |
+| **Websites** | http://localhost:3000/dashboard/websites |
+| **Rankings** | http://localhost:3000/dashboard/rankings |
+| **Reports** | http://localhost:3000/dashboard/reports |
 | **Link Outreach** | http://localhost:3000/dashboard/link-outreach |
 | **AI Chat** | http://localhost:3000/dashboard/chat |
 | **API docs** | http://localhost:8000/docs |
 
 **Demo login:** `demo@example.com` / `demo1234`  
-**Website:** sabacabs.com (Saba Cabs)
+**Portfolio:** onewaydrop.cab · sabacabs.com · punetomumbaicabservice.com
+
+First login: click **Setup all 3 websites** on the dashboard onboarding card.
 
 ## Manual restart (if ports are down)
 
@@ -20,25 +27,24 @@ Services auto-start via `.cursor/environment.json` terminals:
 bash scripts/start-services.sh
 ```
 
-## Project structure
-
-- `backend/` — FastAPI + SQLite (local) / PostgreSQL (Docker)
-- `frontend/` — Next.js 14 dashboard
-- `scripts/` — start, test, and Windows helper scripts
-
 ## Testing
 
 ```bash
-bash scripts/e2e-api.sh          # API smoke tests
-bash scripts/start-services.sh   # start backend :8000 + frontend :3000
+bash scripts/e2e-api.sh
+bash scripts/start-services.sh
 ```
+
+## Integrations (env vars)
+
+- `SEMRUSH_API_KEY` — ranking sync via official API
+- `OPENAI_API_KEY` — GPT chat
+- `OPENPAGERANK_API_KEY` — link prospect scores
 
 ## Important notes
 
-- `localhost:3000` in **your Windows browser** only works if the app runs **on your PC**.
-  Run `scripts/start-local-windows.bat` on Windows, OR use Cursor's **Ports** panel for cloud agents.
-- Crawling sabacabs.com may hit HTTP 429 rate limits — wait and retry.
-- Optional secrets: `OPENAI_API_KEY`, `OPENPAGERANK_API_KEY` in environment secrets.
+- `localhost:3000` on Windows only works if the app runs locally (`scripts/start-local-windows.bat`).
+- Crawling may hit HTTP 429 — wait and retry.
+- Human approval required before production SEO changes (SRS §24).
 
 ## Branch
 
