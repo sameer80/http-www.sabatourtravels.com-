@@ -66,20 +66,22 @@ class WebsiteCrawler:
         return page_urls, []
 
     async def _get_with_retry(self, client: httpx.AsyncClient, url: str) -> httpx.Response | None:
+        last_response: httpx.Response | None = None
         for attempt in range(settings.crawl_max_retries):
             try:
                 response = await client.get(url, follow_redirects=True)
+                last_response = response
                 if response.status_code == 429:
                     retry_after = response.headers.get("Retry-After")
-                    wait_seconds = int(retry_after) if retry_after and retry_after.isdigit() else min(30, 2 ** (attempt + 2))
+                    wait_seconds = int(retry_after) if retry_after and retry_after.isdigit() else min(60, 5 * (attempt + 1))
                     await asyncio.sleep(wait_seconds)
                     continue
                 return response
             except httpx.HTTPError:
                 if attempt + 1 >= settings.crawl_max_retries:
-                    return None
+                    return last_response
                 await asyncio.sleep(2 ** attempt)
-        return None
+        return last_response
 
     async def _load_sitemap_urls(self, client: httpx.AsyncClient, sitemap_url: str, depth: int = 0) -> None:
         if depth > 2 or sitemap_url in self.sitemap_urls:
@@ -189,7 +191,48 @@ class WebsiteCrawler:
                     )
                     continue
 
+                if response.status_code == 429 and current_url == self.base_url:
+                    await asyncio.sleep(45)
+                    response = await self._get_with_retry(client, current_url)
+                    if response is None:
+                        parsed = urlparse(current_url)
+                        self.pages.append(
+                            CrawledPage(
+                                url=current_url,
+                                path=parsed.path or "/",
+                                status_code=429,
+                                redirect_chain=redirect_chain,
+                            )
+                        )
+                        continue
+
+                if response.status_code == 429:
+                    parsed = urlparse(current_url)
+                    self.pages.append(
+                        CrawledPage(
+                            url=current_url,
+                            path=parsed.path or "/",
+                            status_code=429,
+                            redirect_chain=redirect_chain,
+                        )
+                    )
+                    await asyncio.sleep(settings.crawl_delay_seconds)
+                    continue
+
                 redirect_chain = [str(r.url) for r in response.history] + [str(response.url)]
+                if response.status_code >= 400 or not response.text.strip():
+                    parsed = urlparse(str(response.url))
+                    self.pages.append(
+                        CrawledPage(
+                            url=str(response.url),
+                            path=parsed.path or "/",
+                            status_code=response.status_code,
+                            redirect_chain=redirect_chain,
+                        )
+                    )
+                    await asyncio.sleep(settings.crawl_delay_seconds)
+                    continue
+
                 page = self._extract_page(str(response.url), response, redirect_chain)
                 self.pages.append(page)
 

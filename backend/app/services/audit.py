@@ -66,6 +66,20 @@ def analyze_technical_seo(
                     evidence={"url": crawled.url},
                 )
             )
+        elif crawled.status_code == 429:
+            issues.append(
+                CrawlIssue(
+                    crawl_run_id=crawl_run.id,
+                    page_id=page_id,
+                    issue_type="rate_limited",
+                    severity=Severity.HIGH,
+                    message=(
+                        f"Host/server rate-limited the SEO crawler on {crawled.path}. "
+                        "Wait 1–2 minutes and run the audit crawl again. FTP access is not required."
+                    ),
+                    evidence={"url": crawled.url, "status_code": 429},
+                )
+            )
         elif crawled.status_code >= 400:
             issues.append(
                 CrawlIssue(
@@ -77,6 +91,9 @@ def analyze_technical_seo(
                     evidence={"url": crawled.url, "status_code": crawled.status_code},
                 )
             )
+
+        if crawled.status_code in (0, 429) or crawled.status_code >= 400:
+            continue
 
         if len(crawled.redirect_chain) > 2:
             issues.append(

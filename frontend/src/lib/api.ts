@@ -54,6 +54,7 @@ export const api = {
   createWebsite: (data: any) => request("/api/websites", { method: "POST", body: JSON.stringify(data) }),
   dashboard: (id: number) => request(`/api/websites/${id}/dashboard`),
   startCrawl: (id: number) => request(`/api/websites/${id}/crawl`, { method: "POST" }),
+  crawlRuns: (id: number) => request<any[]>(`/api/websites/${id}/crawl-runs`),
   issues: (id: number) => request<any[]>(`/api/websites/${id}/issues`),
   pages: (id: number) => request<any[]>(`/api/websites/${id}/pages`),
   keywords: (id: number) => request<any[]>(`/api/websites/${id}/keywords`),
