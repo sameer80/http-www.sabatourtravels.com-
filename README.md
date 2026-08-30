@@ -12,13 +12,21 @@ AI-powered SEO intelligence, ranking, competitor, backlink and action-management
 
 ## Quick start
 
+### Cloud Agent (automatic)
+Services start via `.cursor/environment.json`. Open **Ports → 3000** in Cursor, or:
+
+- Dashboard: http://localhost:3000/dashboard
+- Login: `demo@example.com` / `demo1234`
+
+Manual restart: `bash scripts/start-services.sh`
+
+### Windows PC (local)
+Double-click: `scripts\start-local-windows.bat`
+
+### Docker
 ```bash
-cp .env.example .env
 docker compose up --build
 ```
-
-- Frontend: http://localhost:3000
-- API docs: http://localhost:8000/docs
 
 ## MVP features
 

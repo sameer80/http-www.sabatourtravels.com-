@@ -1,0 +1,24 @@
+{
+  "name": "AI SEO Manager - Saba Cabs",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "user": "ubuntu",
+  "install": "bash scripts/cloud-agent-install.sh",
+  "start": "bash scripts/cloud-agent-start.sh",
+  "terminals": [
+    {
+      "name": "backend-api",
+      "command": "export PATH=\"$HOME/.local/bin:$PATH\" && cd backend && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    },
+    {
+      "name": "frontend-dev",
+      "command": "cd frontend && npm run dev -- --hostname 0.0.0.0"
+    }
+  ],
+  "ports": [
+    { "port": 3000, "name": "Frontend Dashboard" },
+    { "port": 8000, "name": "Backend API" }
+  ]
+}
