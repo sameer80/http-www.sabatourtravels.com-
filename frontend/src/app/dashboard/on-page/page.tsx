@@ -2,42 +2,72 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { fixGuide } from "@/lib/seoFixes";
 import { OnboardingCard, useWebsite, WebsiteProvider, WebsiteSelector } from "@/components/WebsiteContext";
 
 function OnPageContent() {
   const { website } = useWebsite();
-  const [pages, setPages] = useState<any[]>([]);
+  const [pagesByIssue, setPagesByIssue] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!website) return;
-    api.pages(website.id).then(setPages);
+    if (!website) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    api.auditByPage(website.id).then(setPagesByIssue).finally(() => setLoading(false));
   }, [website]);
 
   if (!website) return <OnboardingCard />;
+  if (loading) return <p className="text-sm text-slate-400">Loading on-page SEO...</p>;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold">On-Page SEO</h2>
-          <p className="text-slate-400">Titles, meta, headings, content depth and internal links per page</p>
+          <h2 className="text-2xl font-bold">On-Page SEO — Fix Each Page</h2>
+          <p className="text-slate-400">
+            Edit these URLs in WordPress/Hostinger, then re-run audit crawl on Technical SEO
+          </p>
         </div>
         <WebsiteSelector />
       </div>
-      <div className="space-y-3">
-        {pages.map((page) => (
-          <div key={page.id} className="card text-sm">
-            <p className="font-medium">{page.path}</p>
-            <p className="text-slate-400">{page.title || "Missing title"}</p>
-            <div className="mt-2 grid gap-1 text-xs text-slate-400 md:grid-cols-4">
-              <span>H1: {page.h1 || "Missing"}</span>
-              <span>Words: {page.word_count}</span>
-              <span>In links: {page.internal_links_in}</span>
-              <span>Missing ALT: {page.images_missing_alt}</span>
+
+      <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-4 text-sm text-slate-300">
+        This dashboard runs on your PC, but each page below is the <strong>live {website.domain} URL</strong>.
+        Open the page → fix in WordPress → click <strong>Run audit crawl</strong> on Technical SEO to confirm.
+      </div>
+
+      <div className="space-y-4">
+        {pagesByIssue.map((group) => (
+          <div key={group.page_url || group.page_path} className="card space-y-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="font-semibold">{group.page_title || group.page_path}</p>
+                <p className="text-xs text-slate-400">{group.page_path}</p>
+              </div>
+              {group.page_url && (
+                <a href={group.page_url} target="_blank" rel="noreferrer" className="btn whitespace-nowrap">
+                  Open live page
+                </a>
+              )}
+            </div>
+            <div className="space-y-2">
+              {group.issues.map((issue: any) => (
+                <div key={issue.id} className="rounded-lg bg-slate-800/80 p-3 text-sm">
+                  <p><span className="badge bg-slate-600 mr-2">{issue.severity}</span>{issue.message}</p>
+                  <p className="mt-2 text-slate-300"><strong>Fix:</strong> {fixGuide(issue.issue_type)}</p>
+                </div>
+              ))}
             </div>
           </div>
         ))}
-        {!pages.length && <p className="text-sm text-slate-400">Run a crawl to analyze on-page SEO signals.</p>}
+        {!pagesByIssue.length && (
+          <p className="text-sm text-slate-400">
+            No page data yet. Go to Technical SEO → Run audit crawl for {website.domain}.
+          </p>
+        )}
       </div>
     </div>
   );

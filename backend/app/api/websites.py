@@ -291,6 +291,97 @@ async def create_task(
     return task
 
 
+@router.post("/{website_id}/tasks/from-audit", response_model=list[TaskOut])
+async def create_tasks_from_audit(
+    website_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    website = await _get_owned_website(db, website_id, current_user)
+    result = await db.execute(
+        select(CrawlIssue, Page.url, Page.path)
+        .join(CrawlRun, CrawlIssue.crawl_run_id == CrawlRun.id)
+        .join(Page, CrawlIssue.page_id == Page.id, isouter=True)
+        .where(CrawlRun.website_id == website_id)
+    )
+    created: list[SeoTask] = []
+    existing = (
+        await db.execute(select(SeoTask).where(SeoTask.website_id == website_id, SeoTask.status != TaskStatus.COMPLETED))
+    ).scalars().all()
+    existing_titles = {t.title.lower() for t in existing}
+
+    owner_map = {
+        "missing_title": "SEO",
+        "missing_meta_description": "SEO",
+        "missing_h1": "SEO",
+        "multiple_h1": "Developer",
+        "thin_content": "Content",
+        "canonical_mismatch": "Developer",
+        "missing_alt": "SEO",
+        "redirect_chain": "Developer",
+        "http_404": "Developer",
+        "orphan_page": "SEO",
+    }
+
+    for issue, page_url, page_path in result.all():
+        title = f"Fix: {issue.message[:120]}"
+        if title.lower() in existing_titles:
+            continue
+        task = SeoTask(
+            website_id=website.id,
+            page_id=issue.page_id,
+            priority=issue.severity,
+            title=title,
+            description=issue.message,
+            page_path=page_path or "",
+            reason=f"{issue.issue_type} on {page_url or website.domain}",
+            owner=owner_map.get(issue.issue_type, "SEO"),
+            status=TaskStatus.PENDING,
+        )
+        db.add(task)
+        created.append(task)
+        existing_titles.add(title.lower())
+
+    await db.commit()
+    for task in created:
+        await db.refresh(task)
+    await log_action(db, "tasks_from_audit", website_id=website.id, user_id=current_user.id, details={"created": len(created)})
+    return created
+
+
+@router.get("/{website_id}/issues/by-page")
+async def issues_by_page(
+    website_id: int, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    await _get_owned_website(db, website_id, current_user)
+    result = await db.execute(
+        select(CrawlIssue, Page.url, Page.path, Page.title)
+        .join(CrawlRun, CrawlIssue.crawl_run_id == CrawlRun.id)
+        .join(Page, CrawlIssue.page_id == Page.id, isouter=True)
+        .where(CrawlRun.website_id == website_id)
+        .order_by(Page.path, CrawlIssue.severity)
+    )
+    grouped: dict[str, dict] = {}
+    for issue, page_url, page_path, page_title in result.all():
+        key = page_url or f"site:{issue.issue_type}"
+        if key not in grouped:
+            grouped[key] = {
+                "page_url": page_url,
+                "page_path": page_path or "/",
+                "page_title": page_title,
+                "issues": [],
+            }
+        grouped[key]["issues"].append(
+            {
+                "id": issue.id,
+                "severity": issue.severity.value,
+                "issue_type": issue.issue_type,
+                "message": issue.message,
+            }
+        )
+    return sorted(grouped.values(), key=lambda x: len(x["issues"]), reverse=True)
+
+
 @router.patch("/{website_id}/tasks/{task_id}", response_model=TaskOut)
 async def update_task(
     website_id: int,

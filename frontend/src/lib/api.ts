@@ -61,6 +61,11 @@ export const api = {
   addKeyword: (id: number, data: any) =>
     request(`/api/websites/${id}/keywords`, { method: "POST", body: JSON.stringify(data) }),
   opportunities: (id: number) => request<any[]>(`/api/websites/${id}/opportunities`),
+  createTask: (websiteId: number, data: any) =>
+    request(`/api/websites/${websiteId}/tasks`, { method: "POST", body: JSON.stringify(data) }),
+  createTasksFromAudit: (id: number) =>
+    request<any[]>(`/api/websites/${id}/tasks/from-audit`, { method: "POST" }),
+  auditByPage: (id: number) => request<any[]>(`/api/websites/${id}/issues/by-page`),
   tasks: (id: number) => request<any[]>(`/api/websites/${id}/tasks`),
   updateTask: (websiteId: number, taskId: number, data: any) =>
     request(`/api/websites/${websiteId}/tasks/${taskId}`, {
