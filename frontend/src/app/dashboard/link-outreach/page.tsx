@@ -8,6 +8,15 @@ function formatStatus(status: string) {
   return status.replaceAll("_", " ");
 }
 
+function ProspectLink({ url, label }: { url: string; label?: string }) {
+  if (!url) return <span className="text-slate-500">—</span>;
+  return (
+    <a href={url} target="_blank" rel="noreferrer" className="table-link break-all">
+      {label || url}
+    </a>
+  );
+}
+
 function LinkOutreachContent() {
   const { website, loading: websiteLoading } = useWebsite();
   const [keyword, setKeyword] = useState("Pune to Mumbai cab");
@@ -63,7 +72,7 @@ function LinkOutreachContent() {
       });
       setProspects(res.prospects);
       setPlan(res.submission_plan);
-      setSuccess(`Found ${res.found} high DA/PA prospects for "${keyword}".`);
+      setSuccess(`Found ${res.found} high DA/PA prospects for "${keyword}". Click the blue links below to open each site.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Search failed");
     } finally {
@@ -102,7 +111,7 @@ function LinkOutreachContent() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold">High DA/PA Link Outreach</h2>
-          <p className="text-sm text-slate-400">Search Google for high-authority sites, then post your URL with target keyword</p>
+          <p className="text-sm text-slate-400">Search for high-authority sites, then open each link and post your URL with the target keyword</p>
         </div>
         <WebsiteSelector />
       </div>
@@ -136,7 +145,7 @@ function LinkOutreachContent() {
       {plan && (
         <div className="card space-y-2 text-sm">
           <h3 className="font-semibold">Submission plan for your URL + keyword</h3>
-          <p><span className="text-slate-400">Target URL:</span> {plan.target_url}</p>
+          <p><span className="text-slate-400">Target URL:</span> <ProspectLink url={plan.target_url} /></p>
           <p><span className="text-slate-400">Suggested anchor:</span> {plan.suggested_anchor}</p>
           <p><span className="text-slate-400">Title:</span> {plan.title_suggestion}</p>
           <p><span className="text-slate-400">Description:</span> {plan.description_suggestion}</p>
@@ -145,38 +154,50 @@ function LinkOutreachContent() {
       )}
 
       <div className="card overflow-x-auto">
-        <table className="w-full text-left text-sm">
+        <table className="w-full min-w-[960px] text-left text-sm">
           <thead className="text-slate-400">
             <tr>
-              <th>DA</th>
-              <th>PA</th>
-              <th>PR</th>
-              <th>Domain</th>
-              <th>Type</th>
-              <th>Keyword</th>
-              <th>Status</th>
-              <th>Action</th>
+              <th className="pb-2 pr-3">Open link</th>
+              <th className="pb-2 pr-3">DA</th>
+              <th className="pb-2 pr-3">PA</th>
+              <th className="pb-2 pr-3">PR</th>
+              <th className="pb-2 pr-3">Site</th>
+              <th className="pb-2 pr-3">Type</th>
+              <th className="pb-2 pr-3">Status</th>
+              <th className="pb-2 pr-3">Posted URL</th>
+              <th className="pb-2">Action</th>
             </tr>
           </thead>
           <tbody>
             {prospects.map((p) => (
-              <tr key={p.id} className="border-t border-slate-800">
-                <td className="py-2 font-semibold text-brand-500">{Math.round(p.domain_authority)}</td>
-                <td className="py-2">{Math.round(p.page_authority)}</td>
-                <td className="py-2">{p.page_rank}</td>
-                <td className="py-2">
-                  <a href={p.prospect_url} target="_blank" rel="noreferrer" className="text-brand-500 hover:underline">
-                    {p.prospect_domain}
+              <tr key={p.id} className="border-t border-slate-800 align-top">
+                <td className="py-3 pr-3">
+                  <a
+                    href={p.prospect_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn inline-block whitespace-nowrap"
+                  >
+                    Open site
                   </a>
                 </td>
-                <td className="py-2 capitalize">{formatStatus(p.prospect_type)}</td>
-                <td className="py-2">{p.keyword}</td>
-                <td className="py-2 capitalize">{formatStatus(p.outreach_status)}</td>
-                <td className="py-2">
+                <td className="py-3 pr-3 font-semibold text-brand-500">{Math.round(p.domain_authority)}</td>
+                <td className="py-3 pr-3">{Math.round(p.page_authority)}</td>
+                <td className="py-3 pr-3">{p.page_rank}</td>
+                <td className="py-3 pr-3">
+                  <p className="font-medium">{p.prospect_domain}</p>
+                  <ProspectLink url={p.prospect_url} label={p.prospect_title || p.prospect_url} />
+                </td>
+                <td className="py-3 pr-3 capitalize">{formatStatus(p.prospect_type)}</td>
+                <td className="py-3 pr-3 capitalize">{formatStatus(p.outreach_status)}</td>
+                <td className="py-3 pr-3">
+                  {p.posted_url ? <ProspectLink url={p.posted_url} label="View posted link" /> : <span className="text-slate-500">—</span>}
+                </td>
+                <td className="py-3">
                   {p.outreach_status !== "posted" && p.outreach_status !== "live" && (
                     <button
                       type="button"
-                      className="btn"
+                      className="btn whitespace-nowrap"
                       disabled={markingId === p.id}
                       onClick={() => markPosted(p.id)}
                     >
@@ -194,7 +215,7 @@ function LinkOutreachContent() {
       </div>
 
       <div className="card text-xs text-slate-400">
-        <p className="mb-1">Optional: paste live submission URL before marking posted</p>
+        <p className="mb-1">Optional: paste your live submission URL before marking posted</p>
         <input
           className="input"
           value={postedUrlInput}

@@ -21,3 +21,7 @@ body {
 .badge {
   @apply rounded-full px-2 py-0.5 text-xs font-semibold uppercase;
 }
+
+.table-link {
+  @apply text-brand-500 underline decoration-brand-500/50 underline-offset-2 hover:text-brand-100;
+}
